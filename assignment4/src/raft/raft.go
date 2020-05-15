@@ -17,7 +17,11 @@ package raft
 //   in the same server.
 //
 
-import "sync"
+import (
+	"math/rand"
+	"sync"
+	"time"
+)
 import "labrpc"
 
 // import "bytes"
@@ -46,10 +50,14 @@ type Raft struct {
 	persister *Persister
 	me        int // index into peers[]
 
-	// Your data here.
-	// Look at the paper's Figure 2 for a description of what
-	// state a Raft server must maintain.
+	currentTerm int
+	votedFor    int
+	timeout     time.Duration
+	log         *Log
+	commitIndex int
+	lastApplied int
 
+	state State
 }
 
 // return currentTerm and whether this server
@@ -60,6 +68,10 @@ func (rf *Raft) GetState() (int, bool) {
 	var isleader bool
 	// Your code here.
 	return term, isleader
+}
+
+func (rf *Raft) SetState(state State) {
+	rf.state = state
 }
 
 //
@@ -94,24 +106,18 @@ func (rf *Raft) readPersist(data []byte) {
 
 
 //
-// example RequestVote RPC arguments structure.
-//
-type RequestVoteArgs struct {
-	// Your data here.
-}
-
-//
-// example RequestVote RPC reply structure.
-//
-type RequestVoteReply struct {
-	// Your data here.
-}
-
-//
 // example RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
-	// Your code here.
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	rf.state.RequestVote(rf, args, reply)
+}
+
+func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	rf.state.AppendEntries(rf, args, reply)
 }
 
 //
@@ -133,6 +139,11 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 //
 func (rf *Raft) sendRequestVote(server int, args RequestVoteArgs, reply *RequestVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+	return ok
+}
+
+func (rf *Raft) sendAppendEntries(server int, args AppendEntriesArgs, reply *AppendEntriesReply) bool {
+	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
 	return ok
 }
 
@@ -166,7 +177,8 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 // turn off debug output from this instance.
 //
 func (rf *Raft) Kill() {
-	// Your code here, if desired.
+	// TODO should I lock/unlock here?
+	rf.state.Kill(rf)
 }
 
 //
@@ -187,10 +199,17 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.persister = persister
 	rf.me = me
 
-	// Your initialization code here.
+	rf.currentTerm = -1
+	rf.votedFor = -1
+	rf.timeout = time.Duration(rand.Intn(150)+150) * time.Millisecond
+	rf.commitIndex = 0
+	rf.lastApplied = 0
+
+	rf.state = NewFollower(rf)
+
 
 	// initialize from state persisted before a crash
-	rf.readPersist(persister.ReadRaftState())
+	// rf.readPersist(persister.ReadRaftState())
 
 
 	return rf
