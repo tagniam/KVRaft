@@ -5,8 +5,7 @@ type AppendEntriesArgs struct {
 	LeaderId     int
 	PrevLogIndex int
 	PrevLogTerm  int
-	// Entries      []Entry
-	Entries      interface{}
+	Entries      []Entry
 	LeaderCommit int
 }
 

@@ -174,7 +174,8 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 // turn off debug output from this instance.
 //
 func (rf *Raft) Kill() {
-	// TODO should I lock/unlock here?
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	rf.state.Kill(rf)
 }
 
