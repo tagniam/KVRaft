@@ -71,6 +71,8 @@ func (rf *Raft) GetState() (int, bool) {
 }
 
 func (rf *Raft) SetState(state State) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	rf.state = state
 }
 
@@ -101,8 +103,6 @@ func (rf *Raft) readPersist(data []byte) {
 	// d.Decode(&rf.xxx)
 	// d.Decode(&rf.yyy)
 }
-
-
 
 
 //
@@ -162,12 +162,9 @@ func (rf *Raft) sendAppendEntries(server int, args AppendEntriesArgs, reply *App
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
-
-
-	return index, term, isLeader
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	return rf.state.Start(rf, command)
 }
 
 //
