@@ -21,7 +21,28 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 }
 
 func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteReply) {
-	panic("implement me")
+	// Reject vote if candidate's term is less than current term
+	// Accept vote if `votedFor` is null (-1 in this case) or args.candidateId and our log isn't more up to date than
+	// candidate's log
+	DPrintf("%d (follower): received RequestVote call from %d: %+v\n", rf.me, args.CandidateId, args)
+	reply.Term = rf.currentTerm
+
+	insufficientTerm := args.Term < rf.currentTerm
+	alreadyVoted := rf.votedFor != -1 && rf.votedFor != args.CandidateId
+	moreUpToDate := rf.log.Compare(args.LastLogIndex, args.LastLogTerm) > 0
+	if insufficientTerm || alreadyVoted || moreUpToDate {
+		reply.VoteGranted = false
+		DPrintf("%d (follower) rejected RequestVote from %d", rf.me, args.CandidateId)
+		DPrintf("%d (follower): insufficientTerm = %v", rf.me, insufficientTerm)
+		DPrintf("%d (follower) alreadyVoted = %v ", rf.me, alreadyVoted)
+		DPrintf("%d (follower) moreUpToDate = %v", rf.me, moreUpToDate)
+		return
+	}
+
+	DPrintf("%d (follower) accepted RequestVote from %d", rf.me, args.CandidateId)
+	reply.VoteGranted = true
+
+	rf.votedFor = args.CandidateId
 }
 
 func (f *Follower) Wait(rf *Raft) {
@@ -34,7 +55,7 @@ func (f *Follower) Wait(rf *Raft) {
 			return
 		case <-time.After(rf.timeout):
 			DPrintf("%d (follower): timed out", rf.me)
-			// rf.state = NewCandidate(rf)
+			rf.SetState(NewCandidate(rf))
 			return
 		}
 	}

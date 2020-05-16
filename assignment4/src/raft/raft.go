@@ -200,6 +200,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = -1
 	rf.votedFor = -1
 	rf.timeout = time.Duration(rand.Intn(150)+150) * time.Millisecond
+	rf.log = NewLog()
 	rf.commitIndex = 0
 	rf.lastApplied = 0
 
