@@ -1,13 +1,12 @@
 package raft
 
 import (
-	"sync"
 	"time"
 )
 
 type Candidate struct {
-	wg sync.WaitGroup
-	done []chan struct{}
+	votes chan bool
+	done chan struct{}
 }
 
 func (c *Candidate) Start(rf *Raft, command interface{}) (int, int, bool) {
@@ -15,39 +14,30 @@ func (c *Candidate) Start(rf *Raft, command interface{}) (int, int, bool) {
 }
 
 func (c *Candidate) Kill(rf *Raft) {
-	// Kill all running goroutines
-	for server := range rf.peers {
-		close(c.done[server])
-	}
+	close(c.done)
+	DPrintf("%d (candidate): killed", rf.me)
 }
 
 func (c *Candidate) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
-	panic("implement me")
+	// panic("implement me")
 }
 
 func (c *Candidate) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteReply) {
-	panic("implement me")
+	// panic("implement me")
 }
 
 func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs) {
 	var reply RequestVoteReply
 	DPrintf("%d (candidate): sending RequestVote to %d: %+v", rf.me, server, args)
-	ok := make(chan bool)
-	go func() {
-		ok <- rf.sendRequestVote(server, args, &reply)
-	}()
+	ok := rf.sendRequestVote(server, args, &reply)
 
-	select {
-	case sent := <-ok:
-		if sent && reply.VoteGranted {
-			DPrintf("%d (candidate): received yes RequestVote from %d: %+v", rf.me, server, reply)
-			c.wg.Done()
-		} else if sent && !reply.VoteGranted {
-			DPrintf("%d (candidate): received no RequestVote from %d: %+v", rf.me, server, reply)
-		} else {
-			DPrintf("%d (candidate): could not send RequestVote to %d", rf.me, server)
-		}
-	case <-c.done[server]:
+	if ok && reply.VoteGranted {
+		DPrintf("%d (candidate): received yes RequestVote from %d: %+v", rf.me, server, reply)
+		c.votes <- true
+	} else if ok && !reply.VoteGranted {
+		DPrintf("%d (candidate): received no RequestVote from %d: %+v", rf.me, server, reply)
+	} else {
+		DPrintf("%d (candidate): could not send RequestVote to %d", rf.me, server)
 	}
 }
 
@@ -55,30 +45,39 @@ func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs
 // Wait for either the election to be won or the timeout to go off.
 //
 func (c *Candidate) Wait(rf *Raft) {
-	done := make(chan struct{})
+	needed := len(rf.peers) / 2 + 1
+
+	timeout := make(chan struct{})
 	go func() {
-		c.wg.Wait()
-		close(done)
+		<-time.After(rf.timeout)
+		close(timeout)
 	}()
 
-	select {
-		case <-done:
-			DPrintf("%d (candidate): new leader bro", rf.me)
-			c.Kill(rf)
-		case <-time.After(rf.timeout):
+	for {
+		select {
+		case <-timeout:
 			DPrintf("%d (candidate): timed out", rf.me)
-			c.Kill(rf)
 			rf.SetState(NewCandidate(rf))
+			return
+		case <-c.done:
+			DPrintf("%d (candidate): stopped waiting", rf.me)
+			return
+		case <-c.votes:
+			needed--
+			if needed == 0 {
+				DPrintf("%d (candidate): won election", rf.me)
+				rf.SetState(NewLeader(rf))
+				return
+			}
+		}
 	}
 }
 
 func NewCandidate(rf *Raft) State {
 	c := Candidate{}
-	c.wg.Add(len(rf.peers) / 2 + 1)
-	c.done = make([]chan struct{}, len(rf.peers))
-	for i := range c.done {
-		c.done[i] = make(chan struct{})
-	}
+	c.done = make(chan struct{})
+	c.votes = make(chan bool, 1)
+	c.votes <- true
 
 	// Send RequestVote RPCs to all peers
 	rf.mu.Lock()

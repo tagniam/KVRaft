@@ -64,7 +64,7 @@ func (f *Follower) Wait(rf *Raft) {
 func NewFollower(rf *Raft) State {
 	f := Follower{}
 	f.done = make(chan struct{})
-	f.heartbeat = make(chan bool)
+	f.heartbeat = make(chan bool, 1)
 	rf.votedFor = -1
 	go f.Wait(rf)
 
