@@ -1,5 +1,7 @@
 package raft
 
+import "time"
+
 type Candidate struct {
 }
 
@@ -23,7 +25,24 @@ func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs
 	var reply RequestVoteReply
 	DPrintf("%d (candidate): sending RequestVote to %d: %+v", rf.me, server, args)
 	if ok := rf.sendRequestVote(server, args, &reply); ok {
+		if reply.VoteGranted {
+			DPrintf("%d (candidate): received yes RequestVote from %d: %+v", rf.me, server, reply)
+		} else {
+			DPrintf("%d (candidate): received no RequestVote from %d: %+v", rf.me, server, reply)
+		}
+	}
+}
 
+//
+// Wait for either the election to be won or the timeout to go off.
+//
+func (c *Candidate) Wait(rf *Raft) {
+	select {
+		// case <-c.election.won:
+		case <-time.After(rf.timeout):
+			DPrintf("%d (candidate): timed out", rf.me)
+			c.Kill(rf)
+			rf.SetState(NewCandidate(rf))
 	}
 }
 
@@ -32,20 +51,14 @@ func NewCandidate(rf *Raft) State {
 
 	// Send RequestVote RPCs to all peers
 	rf.mu.Lock()
-
 	rf.currentTerm++
-	term := rf.currentTerm
-	lastLogIndex := rf.log.GetLastLogIndex()
-	lastLogTerm := rf.log.GetLastLogTerm()
-
-	rf.mu.Unlock()
-
 	args := RequestVoteArgs{
-		Term:         term,
+		Term:         rf.currentTerm,
 		CandidateId:  rf.me,
-		LastLogIndex: lastLogIndex,
-		LastLogTerm:  lastLogTerm,
+		LastLogIndex: rf.log.GetLastLogIndex(),
+		LastLogTerm:  rf.log.GetLastLogTerm(),
 	}
+	rf.mu.Unlock()
 
 	for server, _ := range rf.peers {
 		if server == rf.me {
@@ -54,6 +67,8 @@ func NewCandidate(rf *Raft) State {
 
 		go c.HandleRequestVote(rf, server, args)
 	}
+
+	go c.Wait(rf)
 
 	DPrintf("%d (candidate): created new candidate", rf.me)
 	return &c
