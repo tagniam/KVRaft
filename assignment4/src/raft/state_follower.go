@@ -3,7 +3,7 @@ package raft
 import "time"
 
 type Follower struct {
-	done chan bool
+	done chan struct{}
 	heartbeat chan bool
 }
 
@@ -12,7 +12,7 @@ func (f *Follower) Start(rf *Raft, command interface{}) (int, int, bool) {
 }
 
 func (f *Follower) Kill(rf *Raft) {
-	f.done <- true
+	close(f.done)
 	DPrintf("%d (follower): killed", rf.me)
 }
 
@@ -63,6 +63,8 @@ func (f *Follower) Wait(rf *Raft) {
 
 func NewFollower(rf *Raft) State {
 	f := Follower{}
+	f.done = make(chan struct{})
+	f.heartbeat = make(chan bool)
 	rf.votedFor = -1
 	go f.Wait(rf)
 
