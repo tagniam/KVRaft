@@ -56,8 +56,6 @@ func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs
 // Wait for either the election to be won or the timeout to go off.
 //
 func (c *Candidate) Wait(rf *Raft) {
-	needed := len(rf.peers) / 2 + 1
-
 	timeout := make(chan struct{})
 	go func() {
 		<-time.After(rf.timeout)
@@ -73,9 +71,8 @@ func (c *Candidate) Wait(rf *Raft) {
 		case <-c.done:
 			DPrintf("%d (candidate) (term %d): stopped waiting", rf.me, rf.currentTerm)
 			return
-		case <-c.votes:
-			needed--
-			if needed == 0 {
+		default:
+			if len(c.votes) == cap(c.votes) {
 				DPrintf("%d (candidate) (term %d): won election", rf.me, rf.currentTerm)
 				rf.SetState(NewLeader(rf))
 				return
@@ -87,7 +84,7 @@ func (c *Candidate) Wait(rf *Raft) {
 func NewCandidate(rf *Raft) State {
 	c := Candidate{}
 	c.done = make(chan struct{})
-	c.votes = make(chan bool, 1)
+	c.votes = make(chan bool, len(rf.peers) / 2 + 1)
 	c.votes <- true
 
 	// Send RequestVote RPCs to all peers
