@@ -193,7 +193,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.persister = persister
 	rf.me = me
 
-	rf.currentTerm = -1
+	rf.currentTerm = 0
 	rf.votedFor = -1
 	rf.timeout = time.Duration(rand.Intn(150)+150) * time.Millisecond
 	rf.log = NewLog()

@@ -15,12 +15,12 @@ func (c *Candidate) Start(rf *Raft, command interface{}) (int, int, bool) {
 
 func (c *Candidate) Kill(rf *Raft) {
 	close(c.done)
-	DPrintf("%d (candidate): killed", rf.me)
+	DPrintf("%d (candidate) (term %d): killed", rf.me, rf.currentTerm)
 }
 
 func (c *Candidate) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
 	if args.Term >= rf.currentTerm {
-		DPrintf("%d (candidate): found AppendEntries with equal or higher term from %d: converting to follower", rf.me, args.LeaderId)
+		DPrintf("%d (candidate) (term %d): found AppendEntries with equal or higher term from %d: converting to follower", rf.me, rf.currentTerm, args.LeaderId)
 		rf.SetState(NewFollower(rf))
 		rf.state.AppendEntries(rf, args, reply)
 	}
@@ -28,7 +28,7 @@ func (c *Candidate) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Appen
 
 func (c *Candidate) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteReply) {
 	if args.Term > rf.currentTerm {
-		DPrintf("%d (candidate): found RequestVote with higher term from %d: converting to follower", rf.me, args.CandidateId)
+		DPrintf("%d (candidate) (term %d): found RequestVote with higher term from %d: converting to follower", rf.me, rf.currentTerm, args.CandidateId)
 		rf.SetState(NewFollower(rf))
 		rf.state.RequestVote(rf, args, reply)
 		return
@@ -39,16 +39,16 @@ func (c *Candidate) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVo
 
 func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs) {
 	var reply RequestVoteReply
-	DPrintf("%d (candidate): sending RequestVote to %d: %+v", rf.me, server, args)
+	DPrintf("%d (candidate) (term %d): sending RequestVote to %d: %+v", rf.me, rf.currentTerm, server, args)
 	ok := rf.sendRequestVote(server, args, &reply)
 
 	if ok && reply.VoteGranted {
-		DPrintf("%d (candidate): received yes RequestVote from %d: %+v", rf.me, server, reply)
+		DPrintf("%d (candidate) (term %d): received yes RequestVote from %d: %+v", rf.me, rf.currentTerm, server, reply)
 		c.votes <- true
 	} else if ok && !reply.VoteGranted {
-		DPrintf("%d (candidate): received no RequestVote from %d: %+v", rf.me, server, reply)
+		DPrintf("%d (candidate) (term %d): received no RequestVote from %d: %+v", rf.me, rf.currentTerm, server, reply)
 	} else {
-		DPrintf("%d (candidate): could not send RequestVote to %d", rf.me, server)
+		DPrintf("%d (candidate) (term %d): could not send RequestVote to %d", rf.me, rf.currentTerm, server)
 	}
 }
 
@@ -67,16 +67,16 @@ func (c *Candidate) Wait(rf *Raft) {
 	for {
 		select {
 		case <-timeout:
-			DPrintf("%d (candidate): timed out", rf.me)
+			DPrintf("%d (candidate) (term %d): timed out", rf.me, rf.currentTerm)
 			rf.SetState(NewCandidate(rf))
 			return
 		case <-c.done:
-			DPrintf("%d (candidate): stopped waiting", rf.me)
+			DPrintf("%d (candidate) (term %d): stopped waiting", rf.me, rf.currentTerm)
 			return
 		case <-c.votes:
 			needed--
 			if needed == 0 {
-				DPrintf("%d (candidate): won election", rf.me)
+				DPrintf("%d (candidate) (term %d): won election", rf.me, rf.currentTerm)
 				rf.SetState(NewLeader(rf))
 				return
 			}
@@ -112,6 +112,6 @@ func NewCandidate(rf *Raft) State {
 
 	go c.Wait(rf)
 
-	DPrintf("%d (candidate): created new candidate", rf.me)
+	DPrintf("%d (candidate) (term %d): created new candidate", rf.me, rf.currentTerm)
 	return &c
 }

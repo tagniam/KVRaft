@@ -13,7 +13,7 @@ func (f *Follower) Start(rf *Raft, command interface{}) (int, int, bool) {
 
 func (f *Follower) Kill(rf *Raft) {
 	close(f.done)
-	DPrintf("%d (follower): killed", rf.me)
+	DPrintf("%d (follower)  (term %d): killed", rf.me, rf.currentTerm)
 }
 
 func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -22,12 +22,12 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 	logMatches := rf.log.Contains(args.PrevLogIndex, args.PrevLogTerm)
 	if insufficientTerm || !logMatches {
 		reply.Success = false
-		DPrintf("%d (follower): rejected AppendEntries request from %d\n", rf.me, args.LeaderId)
+		DPrintf("%d (follower)  (term %d): rejected AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
 		return
 	}
 
 	reply.Success = true
-	DPrintf("%d (follower): accepted AppendEntries request from %d\n", rf.me, args.LeaderId)
+	DPrintf("%d (follower)  (term %d): accepted AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
 	f.heartbeat <- true
 }
 
@@ -37,7 +37,7 @@ func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVot
 	// candidate's log
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	DPrintf("%d (follower): received RequestVote call from %d: %+v\n", rf.me, args.CandidateId, args)
+	DPrintf("%d (follower)  (term %d): received RequestVote call from %d: %+v\n", rf.me, rf.currentTerm, args.CandidateId, args)
 	reply.Term = rf.currentTerm
 
 	insufficientTerm := args.Term < rf.currentTerm
@@ -45,14 +45,14 @@ func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVot
 	moreUpToDate := rf.log.Compare(args.LastLogIndex, args.LastLogTerm) > 0
 	if insufficientTerm || alreadyVoted || moreUpToDate {
 		reply.VoteGranted = false
-		DPrintf("%d (follower) rejected RequestVote from %d", rf.me, args.CandidateId)
-		DPrintf("%d (follower): insufficientTerm = %v", rf.me, insufficientTerm)
-		DPrintf("%d (follower) alreadyVoted = %v ", rf.me, alreadyVoted)
-		DPrintf("%d (follower) moreUpToDate = %v", rf.me, moreUpToDate)
+		DPrintf("%d (follower)  (term %d) rejected RequestVote from %d", rf.me, rf.currentTerm, args.CandidateId)
+		DPrintf("%d (follower)  (term %d): insufficientTerm = %v", rf.me, rf.currentTerm, insufficientTerm)
+		DPrintf("%d (follower)  (term %d) alreadyVoted = %v ", rf.me, rf.currentTerm, alreadyVoted)
+		DPrintf("%d (follower)  (term %d) moreUpToDate = %v", rf.me, rf.currentTerm, moreUpToDate)
 		return
 	}
 
-	DPrintf("%d (follower) accepted RequestVote from %d", rf.me, args.CandidateId)
+	DPrintf("%d (follower)  (term %d) accepted RequestVote from %d", rf.me, rf.currentTerm, args.CandidateId)
 	reply.VoteGranted = true
 
 	rf.votedFor = args.CandidateId
@@ -62,12 +62,12 @@ func (f *Follower) Wait(rf *Raft) {
 	for {
 		select {
 		case <-f.heartbeat:
-			DPrintf("%d (follower): received heartbeat, resetting timeout", rf.me)
+			DPrintf("%d (follower)  (term %d): received heartbeat, resetting timeout", rf.me, rf.currentTerm)
 		case <-f.done:
-			DPrintf("%d (follower): manually closing Wait", rf.me)
+			DPrintf("%d (follower)  (term %d): manually closing Wait", rf.me, rf.currentTerm)
 			return
 		case <-time.After(rf.timeout):
-			DPrintf("%d (follower): timed out", rf.me)
+			DPrintf("%d (follower)  (term %d): timed out", rf.me, rf.currentTerm)
 			rf.SetState(NewCandidate(rf))
 			return
 		}
@@ -81,6 +81,6 @@ func NewFollower(rf *Raft) State {
 	rf.votedFor = -1
 	go f.Wait(rf)
 
-	DPrintf("%d (follower): created new follower", rf.me)
+	DPrintf("%d (follower)  (term %d): created new follower", rf.me, rf.currentTerm)
 	return &f
 }
