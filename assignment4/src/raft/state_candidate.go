@@ -19,11 +19,22 @@ func (c *Candidate) Kill(rf *Raft) {
 }
 
 func (c *Candidate) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
-	// panic("implement me")
+	if args.Term >= rf.currentTerm {
+		DPrintf("%d (candidate): found AppendEntries with equal or higher term from %d: converting to follower", rf.me, args.LeaderId)
+		rf.SetState(NewFollower(rf))
+		rf.state.AppendEntries(rf, args, reply)
+	}
 }
 
 func (c *Candidate) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteReply) {
-	// panic("implement me")
+	if args.Term > rf.currentTerm {
+		DPrintf("%d (candidate): found RequestVote with higher term from %d: converting to follower", rf.me, args.CandidateId)
+		rf.SetState(NewFollower(rf))
+		rf.state.RequestVote(rf, args, reply)
+		return
+	}
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 }
 
 func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs) {
@@ -81,6 +92,7 @@ func NewCandidate(rf *Raft) State {
 
 	// Send RequestVote RPCs to all peers
 	rf.mu.Lock()
+	rf.votedFor = rf.me
 	rf.currentTerm++
 	args := RequestVoteArgs{
 		Term:         rf.currentTerm,

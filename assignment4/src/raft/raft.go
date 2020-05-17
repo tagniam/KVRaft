@@ -109,14 +109,10 @@ func (rf *Raft) readPersist(data []byte) {
 // example RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
 	rf.state.RequestVote(rf, args, reply)
 }
 
 func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
 	rf.state.AppendEntries(rf, args, reply)
 }
 

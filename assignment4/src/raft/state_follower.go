@@ -17,6 +17,17 @@ func (f *Follower) Kill(rf *Raft) {
 }
 
 func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
+	reply.Term = rf.currentTerm
+	insufficientTerm := args.Term < rf.currentTerm
+	logMatches := rf.log.Contains(args.PrevLogIndex, args.PrevLogTerm)
+	if insufficientTerm || !logMatches {
+		reply.Success = false
+		DPrintf("%d (follower): rejected AppendEntries request from %d\n", rf.me, args.LeaderId)
+		return
+	}
+
+	reply.Success = true
+	DPrintf("%d (follower): accepted AppendEntries request from %d\n", rf.me, args.LeaderId)
 	f.heartbeat <- true
 }
 
@@ -24,6 +35,8 @@ func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVot
 	// Reject vote if candidate's term is less than current term
 	// Accept vote if `votedFor` is null (-1 in this case) or args.candidateId and our log isn't more up to date than
 	// candidate's log
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	DPrintf("%d (follower): received RequestVote call from %d: %+v\n", rf.me, args.CandidateId, args)
 	reply.Term = rf.currentTerm
 
