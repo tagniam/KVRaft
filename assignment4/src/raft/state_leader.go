@@ -6,15 +6,15 @@ import (
 )
 
 type AppendEntriesMessage struct {
-	Args AppendEntriesArgs
+	Args  AppendEntriesArgs
 	Reply AppendEntriesReply
 }
 
 type Leader struct {
-	mu sync.Mutex
-	nextIndex []int
+	mu         sync.Mutex
+	nextIndex  []int
 	matchIndex []int
-	done chan struct{}
+	done       chan struct{}
 
 	messages chan AppendEntriesMessage
 }
@@ -103,7 +103,6 @@ func (l *Leader) Wait(rf *Raft) {
 	}
 
 }
-
 
 func NewLeader(rf *Raft) State {
 	l := Leader{}

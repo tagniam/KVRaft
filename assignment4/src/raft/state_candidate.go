@@ -6,7 +6,7 @@ import (
 
 type Candidate struct {
 	votes chan bool
-	done chan struct{}
+	done  chan struct{}
 }
 
 func (c *Candidate) Start(rf *Raft, command interface{}) (int, int, bool) {
@@ -85,7 +85,7 @@ func (c *Candidate) Wait(rf *Raft) {
 func NewCandidate(rf *Raft) State {
 	c := Candidate{}
 	c.done = make(chan struct{})
-	c.votes = make(chan bool, len(rf.peers) / 2 + 1)
+	c.votes = make(chan bool, len(rf.peers)/2+1)
 	c.votes <- true
 
 	// Send RequestVote RPCs to all peers

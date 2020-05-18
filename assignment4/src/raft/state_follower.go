@@ -3,7 +3,7 @@ package raft
 import "time"
 
 type Follower struct {
-	done chan struct{}
+	done      chan struct{}
 	heartbeat chan bool
 }
 

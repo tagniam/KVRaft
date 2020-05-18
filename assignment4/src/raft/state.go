@@ -7,4 +7,3 @@ type State interface {
 	AppendEntries(*Raft, AppendEntriesArgs, *AppendEntriesReply)
 	RequestVote(*Raft, RequestVoteArgs, *RequestVoteReply)
 }
-

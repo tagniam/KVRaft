@@ -27,8 +27,6 @@ import "labrpc"
 // import "bytes"
 // import "encoding/gob"
 
-
-
 //
 // as each Raft peer becomes aware that successive log entries are
 // committed, the peer should send an ApplyMsg to the service (or
@@ -104,7 +102,6 @@ func (rf *Raft) readPersist(data []byte) {
 	// d.Decode(&rf.yyy)
 }
 
-
 //
 // example RequestVote RPC handler.
 //
@@ -142,7 +139,6 @@ func (rf *Raft) sendAppendEntries(server int, args AppendEntriesArgs, reply *App
 	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
 	return ok
 }
-
 
 //
 // the service using Raft (e.g. a k/v server) wants to start
@@ -202,10 +198,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	rf.state = NewFollower(rf)
 
-
 	// initialize from state persisted before a crash
 	// rf.readPersist(persister.ReadRaftState())
-
 
 	return rf
 }
