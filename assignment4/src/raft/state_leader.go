@@ -64,17 +64,22 @@ func (l *Leader) HandleAppendEntries(rf *Raft, server int) {
 		go func(server int, args AppendEntriesArgs) {
 			var reply AppendEntriesReply
 			ok := rf.sendAppendEntries(server, args, &reply)
-			if ok && reply.Success {
-				DPrintf("%d (leader)    (term %d): received successful AppendEntries reply from %d: %+v", rf.me, rf.currentTerm, server, reply)
-				l.messages <- AppendEntriesMessage{args, reply}
-			} else if ok && !reply.Success {
-				DPrintf("%d (leader)    (term %d): received unsuccessful AppendEntries reply from %d: %+v", rf.me, rf.currentTerm, server, reply)
-				l.messages <- AppendEntriesMessage{args, reply}
+			if ok {
+				DPrintf("%d (leader)    (term %d): received %v AppendEntries reply from %d: %+v", rf.me, rf.currentTerm, reply.Success, server, reply)
+				select {
+				case <-l.done:
+				default:
+					l.messages <- AppendEntriesMessage{args, reply}
+				}
 			} else {
 				DPrintf("%d (leader)    (term %d): could not send AppendEntries to %d: %+v", rf.me, rf.currentTerm, server, args)
 			}
 		}(server, args)
-		<-time.After(rf.timeout)
+		select {
+		case <-l.done:
+			return
+		case <-time.After(rf.timeout):
+		}
 	}
 }
 

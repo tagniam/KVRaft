@@ -18,6 +18,7 @@ func (f *Follower) Kill(rf *Raft) {
 
 func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	DPrintf("%d (follower)  (term %d): received AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
 	if args.Term > rf.currentTerm {
 		rf.currentTerm = args.Term
@@ -29,14 +30,16 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 	if insufficientTerm || !logMatches {
 		reply.Success = false
 		DPrintf("%d (follower)  (term %d): rejected AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
-		rf.mu.Unlock()
 		return
 	}
 
 	reply.Success = true
 	DPrintf("%d (follower)  (term %d): accepted AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
-	rf.mu.Unlock()
-	f.heartbeat <- true
+	select {
+	case <-f.done:
+	default:
+		f.heartbeat <- true
+	}
 }
 
 func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteReply) {
@@ -44,6 +47,7 @@ func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVot
 	// Accept vote if `votedFor` is null (-1 in this case) or args.candidateId and our log isn't more up to date than
 	// candidate's log
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	if args.Term > rf.currentTerm {
 		rf.currentTerm = args.Term
 	}
@@ -60,7 +64,6 @@ func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVot
 		DPrintf("%d (follower)  (term %d): insufficientTerm = %v", rf.me, rf.currentTerm, insufficientTerm)
 		DPrintf("%d (follower)  (term %d) alreadyVoted = %v ", rf.me, rf.currentTerm, alreadyVoted)
 		DPrintf("%d (follower)  (term %d) moreUpToDate = %v", rf.me, rf.currentTerm, moreUpToDate)
-		rf.mu.Unlock()
 		return
 	}
 
@@ -68,9 +71,11 @@ func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVot
 	reply.VoteGranted = true
 
 	rf.votedFor = args.CandidateId
-	rf.mu.Unlock()
-
-	f.heartbeat <- true
+	select {
+	case <-f.done:
+	default:
+		f.heartbeat <- true
+	}
 }
 
 func (f *Follower) Wait(rf *Raft) {

@@ -31,10 +31,7 @@ func (c *Candidate) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVo
 		DPrintf("%d (candidate) (term %d): found RequestVote with higher term from %d: converting to follower", rf.me, rf.currentTerm, args.CandidateId)
 		rf.SetState(NewFollower(rf))
 		rf.state.RequestVote(rf, args, reply)
-		return
 	}
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
 }
 
 func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs) {
@@ -44,7 +41,11 @@ func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs
 
 	if ok && reply.VoteGranted {
 		DPrintf("%d (candidate) (term %d): received yes RequestVote from %d: %+v", rf.me, rf.currentTerm, server, reply)
-		c.votes <- true
+		select {
+		case <-c.done:
+		default:
+			c.votes <- true
+		}
 	} else if ok && !reply.VoteGranted {
 		DPrintf("%d (candidate) (term %d): received no RequestVote from %d: %+v", rf.me, rf.currentTerm, server, reply)
 	} else {
