@@ -8,12 +8,14 @@ type Follower struct {
 }
 
 func (f *Follower) Start(rf *Raft, command interface{}) (int, int, bool) {
-	panic("implement me")
+	DPrintf("%d (follower)  (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
+	return rf.log.GetLastLogIndex(), rf.currentTerm, false
 }
 
 func (f *Follower) Kill(rf *Raft) {
 	close(f.done)
 	DPrintf("%d (follower)  (term %d): killed", rf.me, rf.currentTerm)
+	DPrintf("%d (follower)  (term %d): killed: log: %v", rf.me, rf.currentTerm, rf.log.Entries)
 }
 
 func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -38,6 +40,10 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 	default:
 		f.heartbeat <- true
 	}
+
+	// TODO if an existing entry conflicts with a new one(same index but different terms), delete the existing entry and all that follow it
+	// TODO append any new entries not already in the log
+	// TODO if leader commit > commit index, set commit index = min(leader commit, index of last new entry)
 }
 
 func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteReply) {

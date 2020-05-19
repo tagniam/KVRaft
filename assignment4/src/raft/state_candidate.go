@@ -10,12 +10,14 @@ type Candidate struct {
 }
 
 func (c *Candidate) Start(rf *Raft, command interface{}) (int, int, bool) {
-	panic("implement me")
+	DPrintf("%d (candidate) (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
+	return rf.log.GetLastLogIndex(), rf.currentTerm, false
 }
 
 func (c *Candidate) Kill(rf *Raft) {
 	close(c.done)
 	DPrintf("%d (candidate) (term %d): killed", rf.me, rf.currentTerm)
+	DPrintf("%d (candidate) (term %d): log: %v", rf.me, rf.currentTerm, rf.log.Entries)
 }
 
 func (c *Candidate) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {

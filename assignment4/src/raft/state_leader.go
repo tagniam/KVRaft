@@ -20,12 +20,24 @@ type Leader struct {
 }
 
 func (l *Leader) Start(rf *Raft, command interface{}) (int, int, bool) {
-	panic("implement me")
+	go func() {
+		rf.mu.Lock()
+		defer rf.mu.Unlock()
+		DPrintf("%d (leader)    (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
+		entry := Entry{rf.currentTerm, command}
+		rf.log.Entries = append(rf.log.Entries, entry)
+
+	}()
+	// l.nextIndex[rf.me]++
+	// l.matchIndex[rf.me]++
+
+	return rf.log.GetLastLogIndex(), rf.currentTerm, true
 }
 
 func (l *Leader) Kill(rf *Raft) {
 	close(l.done)
 	DPrintf("%d (leader)    (term %d): killed", rf.me, rf.currentTerm)
+	DPrintf("%d (leader)    (term %d): log: %v", rf.me, rf.currentTerm, rf.log.Entries)
 }
 
 func (l *Leader) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -54,8 +66,12 @@ func (l *Leader) HandleAppendEntries(rf *Raft, server int) {
 		args := AppendEntriesArgs{}
 		args.Term = rf.currentTerm
 		args.LeaderId = rf.me
-		args.PrevLogIndex = 0
-		args.PrevLogTerm = -1
+		args.LeaderCommit = rf.commitIndex
+
+		prevLogIndex := l.nextIndex[server]-1
+		args.PrevLogIndex = prevLogIndex
+		args.PrevLogTerm = rf.log.Entries[prevLogIndex].Term
+		args.Entries = rf.log.Entries[prevLogIndex+1:]
 
 		l.mu.Unlock()
 		rf.mu.Unlock()
