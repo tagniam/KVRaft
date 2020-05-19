@@ -67,7 +67,9 @@ func (c *Candidate) Wait(rf *Raft) {
 		select {
 		case <-timeout:
 			DPrintf("%d (candidate) (term %d): timed out", rf.me, rf.currentTerm)
+			rf.mu.Lock()
 			rf.SetState(NewCandidate(rf))
+			rf.mu.Unlock()
 			return
 		case <-c.done:
 			DPrintf("%d (candidate) (term %d): stopped waiting", rf.me, rf.currentTerm)
@@ -75,7 +77,9 @@ func (c *Candidate) Wait(rf *Raft) {
 		default:
 			if len(c.votes) == cap(c.votes) {
 				DPrintf("%d (candidate) (term %d): won election", rf.me, rf.currentTerm)
+				rf.mu.Lock()
 				rf.SetState(NewLeader(rf))
+				rf.mu.Unlock()
 				return
 			}
 		}
@@ -89,7 +93,6 @@ func NewCandidate(rf *Raft) State {
 	c.votes <- true
 
 	// Send RequestVote RPCs to all peers
-	rf.mu.Lock()
 	rf.votedFor = rf.me
 	rf.currentTerm++
 	args := RequestVoteArgs{
@@ -98,7 +101,6 @@ func NewCandidate(rf *Raft) State {
 		LastLogIndex: rf.log.GetLastLogIndex(),
 		LastLogTerm:  rf.log.GetLastLogTerm(),
 	}
-	rf.mu.Unlock()
 
 	for server := range rf.peers {
 		if server == rf.me {

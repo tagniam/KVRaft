@@ -17,8 +17,6 @@ func (f *Follower) Kill(rf *Raft) {
 }
 
 func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
 	DPrintf("%d (follower)  (term %d): received AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
 	if args.Term > rf.currentTerm {
 		rf.currentTerm = args.Term
@@ -46,8 +44,6 @@ func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVot
 	// Reject vote if candidate's term is less than current term
 	// Accept vote if `votedFor` is null (-1 in this case) or args.candidateId and our log isn't more up to date than
 	// candidate's log
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
 	if args.Term > rf.currentTerm {
 		rf.currentTerm = args.Term
 	}
@@ -88,7 +84,9 @@ func (f *Follower) Wait(rf *Raft) {
 			return
 		case <-time.After(rf.timeout):
 			DPrintf("%d (follower)  (term %d): timed out", rf.me, rf.currentTerm)
+			rf.mu.Lock()
 			rf.SetState(NewCandidate(rf))
+			rf.mu.Unlock()
 			return
 		}
 	}
