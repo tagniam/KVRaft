@@ -55,7 +55,8 @@ type Raft struct {
 	commitIndex int
 	lastApplied int
 
-	state State
+	state       State
+	apply       chan ApplyMsg
 }
 
 // return currentTerm and whether this server
@@ -199,6 +200,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.lastApplied = 0
 
 	rf.state = NewFollower(rf)
+	rf.apply = applyCh
 
 	// initialize from state persisted before a crash
 	// rf.readPersist(persister.ReadRaftState())
