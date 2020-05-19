@@ -40,14 +40,15 @@ func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs
 	var reply RequestVoteReply
 	DPrintf("%d (candidate) (term %d): sending RequestVote to %d: %+v", rf.me, rf.currentTerm, server, args)
 	ok := rf.sendRequestVote(server, args, &reply)
+	select {
+	case <-c.done:
+		return
+	default:
+	}
 
 	if ok && reply.VoteGranted {
 		DPrintf("%d (candidate) (term %d): received yes RequestVote from %d: %+v", rf.me, rf.currentTerm, server, reply)
-		select {
-		case <-c.done:
-		default:
-			c.votes <- true
-		}
+		c.votes <- true
 	} else if ok && !reply.VoteGranted {
 		DPrintf("%d (candidate) (term %d): received no RequestVote from %d: %+v", rf.me, rf.currentTerm, server, reply)
 	} else {

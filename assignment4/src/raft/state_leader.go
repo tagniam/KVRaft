@@ -58,13 +58,13 @@ func (l *Leader) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteR
 func (l *Leader) HandleOneAppendEntries(rf *Raft, server int, args AppendEntriesArgs) {
 	var reply AppendEntriesReply
 	ok := rf.sendAppendEntries(server, args, &reply)
+	select {
+	case <-l.done:
+		return
+	default:
+	}
 	if ok {
 		DPrintf("%d (leader)    (term %d): received %v AppendEntries reply from %d: %+v", rf.me, rf.currentTerm, reply.Success, server, reply)
-		select {
-		case <-l.done:
-			return
-		default:
-		}
 
 		rf.mu.Lock()
 		l.mu.Lock()
