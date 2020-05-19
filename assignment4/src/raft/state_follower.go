@@ -27,6 +27,16 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 	reply.Term = rf.currentTerm
 	insufficientTerm := args.Term < rf.currentTerm
 	logMatches := rf.log.Contains(args.PrevLogIndex, args.PrevLogTerm)
+
+	// Reset heartbeat if not insufficient term (AppendEntries request comes from current leader)
+	if !insufficientTerm {
+		select {
+		case <-f.done:
+		default:
+			f.heartbeat <- true
+		}
+	}
+
 	if insufficientTerm || !logMatches {
 		reply.Success = false
 		DPrintf("%d (follower)  (term %d): rejected AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
@@ -35,11 +45,6 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 
 	reply.Success = true
 	DPrintf("%d (follower)  (term %d): accepted AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
-	select {
-	case <-f.done:
-	default:
-		f.heartbeat <- true
-	}
 
 	// if an existing entry conflicts with a new one(same index but different terms), delete the existing entry and all that follow it
 	i := 0

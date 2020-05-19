@@ -134,7 +134,7 @@ func (l *Leader) HandleAppendEntries(rf *Raft, server int) {
 		select {
 		case <-l.done:
 			return
-		case <-time.After(time.Millisecond * 20):
+		case <-time.After(time.Millisecond * 50):
 		}
 	}
 }
