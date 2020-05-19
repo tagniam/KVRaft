@@ -65,6 +65,28 @@ func (l *Leader) HandleOneAppendEntries(rf *Raft, server int, args AppendEntries
 			return
 		default:
 		}
+
+		rf.mu.Lock()
+		l.mu.Lock()
+		defer rf.mu.Unlock()
+		defer l.mu.Unlock()
+
+		if rf.currentTerm != args.Term {
+			return
+		} else if reply.Term > args.Term {
+			rf.SetState(NewFollower(rf))
+		} else if reply.Success {
+			// update nextIndex and matchIndex for follower at `server`
+			numAdded := len(args.Entries)
+			l.nextIndex[server] = args.PrevLogIndex + numAdded + 1
+			l.matchIndex[server] = args.PrevLogIndex + numAdded
+		} else {
+			// decrement nextIndex for `server`
+			l.nextIndex[server]--
+			if l.nextIndex[server] < 1 {
+				l.nextIndex[server] = 1
+			}
+		}
 	} else {
 		DPrintf("%d (leader)    (term %d): could not send AppendEntries to %d: %+v", rf.me, rf.currentTerm, server, args)
 	}
