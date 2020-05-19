@@ -26,10 +26,9 @@ func (l *Leader) Start(rf *Raft, command interface{}) (int, int, bool) {
 		DPrintf("%d (leader)    (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
 		entry := Entry{rf.currentTerm, command}
 		rf.log.Entries = append(rf.log.Entries, entry)
-
+		l.nextIndex[rf.me]++
+		l.matchIndex[rf.me]++
 	}()
-	// l.nextIndex[rf.me]++
-	// l.matchIndex[rf.me]++
 
 	return rf.log.GetLastLogIndex(), rf.currentTerm, true
 }
@@ -37,7 +36,7 @@ func (l *Leader) Start(rf *Raft, command interface{}) (int, int, bool) {
 func (l *Leader) Kill(rf *Raft) {
 	close(l.done)
 	DPrintf("%d (leader)    (term %d): killed", rf.me, rf.currentTerm)
-	DPrintf("%d (leader)    (term %d): log: %v", rf.me, rf.currentTerm, rf.log.Entries)
+	DPrintf("%d (leader)    (term %d): killed: log: %v", rf.me, rf.currentTerm, rf.log.Entries)
 }
 
 func (l *Leader) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {

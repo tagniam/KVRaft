@@ -41,8 +41,16 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 		f.heartbeat <- true
 	}
 
-	// TODO if an existing entry conflicts with a new one(same index but different terms), delete the existing entry and all that follow it
-	// TODO append any new entries not already in the log
+	// if an existing entry conflicts with a new one(same index but different terms), delete the existing entry and all that follow it
+	i := 0
+	j := args.PrevLogIndex+1
+	for i < len(args.Entries) && j < len(rf.log.Entries) && rf.log.Entries[j].Term == args.Entries[i].Term {
+		i++
+		j++
+	}
+	rf.log.Entries = rf.log.Entries[:j]
+	// append any new entries not already in the log
+	rf.log.Entries = append(rf.log.Entries, args.Entries[i:]...)
 	// TODO if leader commit > commit index, set commit index = min(leader commit, index of last new entry)
 }
 
