@@ -174,6 +174,23 @@ func (rf *Raft) Kill() {
 	rf.state.Kill(rf)
 }
 
+func (rf *Raft) Commit() {
+	if rf.commitIndex <= rf.lastApplied {
+		return
+	}
+
+	for rf.lastApplied < rf.commitIndex {
+		rf.lastApplied++
+		rf.apply <- ApplyMsg{
+			Index:       rf.lastApplied,
+			Command:     rf.log.Entries[rf.lastApplied].Command,
+			UseSnapshot: false,
+			Snapshot:    nil,
+		}
+		DPrintf("%d (unknown)  (term %d): applied commit %d", rf.me, rf.currentTerm, rf.lastApplied)
+	}
+}
+
 //
 // the service or tester wants to create a Raft server. the ports
 // of all the Raft servers (including this one) are in peers[]. this

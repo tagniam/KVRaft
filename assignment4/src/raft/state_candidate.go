@@ -11,7 +11,7 @@ type Candidate struct {
 
 func (c *Candidate) Start(rf *Raft, command interface{}) (int, int, bool) {
 	DPrintf("%d (candidate) (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
-	return rf.log.GetLastLogIndex(), rf.currentTerm, false
+	return rf.log.GetLastLogIndex()+1, rf.currentTerm, false
 }
 
 func (c *Candidate) Kill(rf *Raft) {

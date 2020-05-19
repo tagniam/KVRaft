@@ -30,7 +30,7 @@ func (l *Leader) Start(rf *Raft, command interface{}) (int, int, bool) {
 		l.matchIndex[rf.me]++
 	}()
 
-	return rf.log.GetLastLogIndex(), rf.currentTerm, true
+	return rf.log.GetLastLogIndex()+1, rf.currentTerm, true
 }
 
 func (l *Leader) Kill(rf *Raft) {
@@ -80,6 +80,23 @@ func (l *Leader) HandleOneAppendEntries(rf *Raft, server int, args AppendEntries
 			numAdded := len(args.Entries)
 			l.nextIndex[server] = args.PrevLogIndex + numAdded + 1
 			l.matchIndex[server] = args.PrevLogIndex + numAdded
+
+			for N := rf.commitIndex+1; N < len(rf.log.Entries); N++ {
+				// Check if a majority of matchIndex >= N
+				count := 0
+				for _, m := range l.matchIndex {
+					if m >= N {
+						count++
+					}
+				}
+
+				if count > len(rf.peers)/2 && rf.log.Entries[N].Term == rf.currentTerm {
+					DPrintf("%d (leader)    (term %d): setting commit index from %d to %d", rf.me, rf.currentTerm, rf.commitIndex, N)
+					rf.commitIndex = N
+					rf.Commit()
+					return
+				}
+			}
 		} else {
 			// decrement nextIndex for `server`
 			l.nextIndex[server]--
@@ -117,7 +134,7 @@ func (l *Leader) HandleAppendEntries(rf *Raft, server int) {
 		select {
 		case <-l.done:
 			return
-		case <-time.After(rf.timeout):
+		case <-time.After(time.Millisecond * 20):
 		}
 	}
 }

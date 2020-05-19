@@ -9,7 +9,7 @@ type Follower struct {
 
 func (f *Follower) Start(rf *Raft, command interface{}) (int, int, bool) {
 	DPrintf("%d (follower)  (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
-	return rf.log.GetLastLogIndex(), rf.currentTerm, false
+	return rf.log.GetLastLogIndex()+1, rf.currentTerm, false
 }
 
 func (f *Follower) Kill(rf *Raft) {
@@ -51,7 +51,17 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 	rf.log.Entries = rf.log.Entries[:j]
 	// append any new entries not already in the log
 	rf.log.Entries = append(rf.log.Entries, args.Entries[i:]...)
-	// TODO if leader commit > commit index, set commit index = min(leader commit, index of last new entry)
+	// if leader commit > commit index, set commit index = min(leader commit, index of last new entry)
+	if args.LeaderCommit > rf.commitIndex {
+		if args.LeaderCommit < rf.log.GetLastLogIndex() {
+			DPrintf("%d (follower)  (term %d): setting commit index from %d to %d", rf.me, rf.currentTerm, rf.commitIndex, args.LeaderCommit)
+			rf.commitIndex = args.LeaderCommit
+		} else {
+			DPrintf("%d (follower)  (term %d): setting commit index from %d to %d", rf.me, rf.currentTerm, rf.commitIndex, rf.log.GetLastLogIndex())
+			rf.commitIndex = rf.log.GetLastLogIndex()
+		}
+		rf.Commit()
+	}
 }
 
 func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteReply) {
