@@ -15,14 +15,14 @@ type Leader struct {
 	nextIndex  []int
 	matchIndex []int
 	done       chan struct{}
-
-	messages chan AppendEntriesMessage
 }
 
 func (l *Leader) Start(rf *Raft, command interface{}) (int, int, bool) {
 	go func() {
 		rf.mu.Lock()
+		l.mu.Lock()
 		defer rf.mu.Unlock()
+		defer l.mu.Unlock()
 		DPrintf("%d (leader)    (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
 		entry := Entry{rf.currentTerm, command}
 		rf.log.Entries = append(rf.log.Entries, entry)
@@ -55,6 +55,21 @@ func (l *Leader) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteR
 	}
 }
 
+func (l *Leader) HandleOneAppendEntries(rf *Raft, server int, args AppendEntriesArgs) {
+	var reply AppendEntriesReply
+	ok := rf.sendAppendEntries(server, args, &reply)
+	if ok {
+		DPrintf("%d (leader)    (term %d): received %v AppendEntries reply from %d: %+v", rf.me, rf.currentTerm, reply.Success, server, reply)
+		select {
+		case <-l.done:
+			return
+		default:
+		}
+	} else {
+		DPrintf("%d (leader)    (term %d): could not send AppendEntries to %d: %+v", rf.me, rf.currentTerm, server, args)
+	}
+}
+
 func (l *Leader) HandleAppendEntries(rf *Raft, server int) {
 
 	for {
@@ -76,47 +91,13 @@ func (l *Leader) HandleAppendEntries(rf *Raft, server int) {
 		rf.mu.Unlock()
 
 		DPrintf("%d (leader)    (term %d): sending AppendEntries to %d: %+v", rf.me, rf.currentTerm, server, args)
-		go func(server int, args AppendEntriesArgs) {
-			var reply AppendEntriesReply
-			ok := rf.sendAppendEntries(server, args, &reply)
-			if ok {
-				DPrintf("%d (leader)    (term %d): received %v AppendEntries reply from %d: %+v", rf.me, rf.currentTerm, reply.Success, server, reply)
-				select {
-				case <-l.done:
-				default:
-					l.messages <- AppendEntriesMessage{args, reply}
-				}
-			} else {
-				DPrintf("%d (leader)    (term %d): could not send AppendEntries to %d: %+v", rf.me, rf.currentTerm, server, args)
-			}
-		}(server, args)
+		go l.HandleOneAppendEntries(rf, server, args)
 		select {
 		case <-l.done:
 			return
 		case <-time.After(rf.timeout):
 		}
 	}
-}
-
-func (l *Leader) Wait(rf *Raft) {
-	for {
-		select {
-		case <-l.done:
-			DPrintf("%d (leader)    (term %d): manually closing Wait", rf.me, rf.currentTerm)
-			return
-		default:
-		}
-
-		select {
-		case msg := <-l.messages:
-			if msg.Args.Term != rf.currentTerm {
-				// Outdated message, ignore
-				break
-			}
-
-		}
-	}
-
 }
 
 func NewLeader(rf *Raft) State {
@@ -129,7 +110,6 @@ func NewLeader(rf *Raft) State {
 		l.matchIndex[server] = 0
 	}
 	l.done = make(chan struct{})
-	l.messages = make(chan AppendEntriesMessage)
 
 	for server := range rf.peers {
 		if server == rf.me {
@@ -138,8 +118,6 @@ func NewLeader(rf *Raft) State {
 
 		go l.HandleAppendEntries(rf, server)
 	}
-
-	go l.Wait(rf)
 
 	DPrintf("%d (leader)    (term %d): created new leader", rf.me, rf.currentTerm)
 	return &l
