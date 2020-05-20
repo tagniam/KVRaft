@@ -18,20 +18,14 @@ type Leader struct {
 }
 
 func (l *Leader) Start(rf *Raft, command interface{}) (int, int, bool) {
-	go func() {
-		rf.mu.Lock()
-		l.mu.Lock()
-		defer rf.mu.Unlock()
-		defer l.mu.Unlock()
-		DPrintf("%d (leader)    (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
-		entry := Entry{rf.currentTerm, command}
-		rf.log.Entries = append(rf.log.Entries, entry)
-		//l.nextIndex[rf.me]++
-		//l.matchIndex[rf.me]++
-		rf.persist()
-	}()
+	DPrintf("%d (leader)    (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
+	entry := Entry{rf.currentTerm, command}
+	rf.log.Entries = append(rf.log.Entries, entry)
+	//l.nextIndex[rf.me]++
+	//l.matchIndex[rf.me]++
+	rf.persist()
 
-	return rf.log.GetLastLogIndex()+1, rf.currentTerm, true
+	return rf.log.GetLastLogIndex(), rf.currentTerm, true
 }
 
 func (l *Leader) Kill(rf *Raft) {
