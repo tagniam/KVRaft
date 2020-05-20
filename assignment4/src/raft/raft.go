@@ -20,14 +20,15 @@ package raft
 import (
 	"bytes"
 	"encoding/gob"
-	"math/rand"
+	"labrpc"
 	"sync"
-	"time"
 )
-import "labrpc"
 
-// import "bytes"
-// import "encoding/gob"
+const (
+	ElectionTimeoutMin = 150
+	ElectionTimeoutMax = 300
+	HeartbeatTimeout   = 50
+)
 
 //
 // as each Raft peer becomes aware that successive log entries are
@@ -52,7 +53,6 @@ type Raft struct {
 
 	currentTerm int
 	votedFor    int
-	timeout     time.Duration
 	log         *Log
 	commitIndex int
 	lastApplied int
@@ -81,15 +81,6 @@ func (rf *Raft) SetState(state State) {
 // see paper's Figure 2 for a description of what should be persistent.
 //
 func (rf *Raft) persist() {
-	// Your code here.
-	// Example:
-	// w := new(bytes.Buffer)
-	// e := gob.NewEncoder(w)
-	// e.Encode(rf.xxx)
-	// e.Encode(rf.yyy)
-	// data := w.Bytes()
-	// rf.persister.SaveRaftState(data)
-
 	w := new(bytes.Buffer)
 	e := gob.NewEncoder(w)
 	e.Encode(rf.currentTerm)
@@ -224,7 +215,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	rf.currentTerm = 0
 	rf.votedFor = -1
-	rf.timeout = time.Duration(rand.Intn(150)+150) * time.Millisecond
 	rf.log = NewLog()
 	rf.commitIndex = 0
 	rf.lastApplied = 0

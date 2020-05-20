@@ -46,6 +46,7 @@ func (l *Leader) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEn
 		rf.SetState(NewFollower(rf))
 		rf.state.AppendEntries(rf, args, reply)
 	} else {
+		DPrintf("%d (leader)    (term %d): rejected AppendEntries request from %d with term %d", rf.me, rf.currentTerm, args.LeaderId, args.Term)
 		reply.Term = rf.currentTerm
 		reply.Success = false
 	}
@@ -57,6 +58,7 @@ func (l *Leader) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteR
 		rf.SetState(NewFollower(rf))
 		rf.state.RequestVote(rf, args, reply)
 	} else {
+		DPrintf("%d (leader)    (term %d): rejected AppendEntries request from %d with term %d", rf.me, rf.currentTerm, args.CandidateId, args.Term)
 		reply.Term = rf.currentTerm
 		reply.VoteGranted = false
 	}
@@ -141,7 +143,7 @@ func (l *Leader) HandleAppendEntries(rf *Raft, server int) {
 		select {
 		case <-l.done:
 			return
-		case <-time.After(time.Millisecond * 50):
+		case <-time.After(time.Millisecond * HeartbeatTimeout):
 		}
 	}
 }

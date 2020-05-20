@@ -1,12 +1,14 @@
 package raft
 
 import (
+	"math/rand"
 	"time"
 )
 
 type Candidate struct {
-	votes chan bool
-	done  chan struct{}
+	votes   chan bool
+	done    chan struct{}
+	timeout time.Duration
 }
 
 func (c *Candidate) Start(rf *Raft, command interface{}) (int, int, bool) {
@@ -26,6 +28,7 @@ func (c *Candidate) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Appen
 		rf.SetState(NewFollower(rf))
 		rf.state.AppendEntries(rf, args, reply)
 	} else {
+		DPrintf("%d (candidate) (term %d): rejected AppendEntries request from %d with term %d", rf.me, rf.currentTerm, args.LeaderId, args.Term)
 		reply.Term = rf.currentTerm
 		reply.Success = false
 	}
@@ -37,6 +40,7 @@ func (c *Candidate) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVo
 		rf.SetState(NewFollower(rf))
 		rf.state.RequestVote(rf, args, reply)
 	} else {
+		DPrintf("%d (candidate) (term %d): rejected AppendEntries request from %d with term %d", rf.me, rf.currentTerm, args.CandidateId, args.Term)
 		reply.Term = rf.currentTerm
 		reply.VoteGranted = false
 	}
@@ -68,7 +72,7 @@ func (c *Candidate) HandleRequestVote(rf *Raft, server int, args RequestVoteArgs
 func (c *Candidate) Wait(rf *Raft) {
 	timeout := make(chan struct{})
 	go func() {
-		<-time.After(rf.timeout)
+		<-time.After(c.timeout)
 		close(timeout)
 	}()
 
@@ -100,6 +104,7 @@ func NewCandidate(rf *Raft) State {
 	c.done = make(chan struct{})
 	c.votes = make(chan bool, len(rf.peers)/2+1)
 	c.votes <- true
+	c.timeout = time.Duration(rand.Intn(ElectionTimeoutMin)+(ElectionTimeoutMax-ElectionTimeoutMin)) * time.Millisecond
 
 	// Send RequestVote RPCs to all peers
 	rf.votedFor = rf.me

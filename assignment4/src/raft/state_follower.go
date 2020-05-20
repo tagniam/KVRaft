@@ -1,10 +1,14 @@
 package raft
 
-import "time"
+import (
+	"math/rand"
+	"time"
+)
 
 type Follower struct {
 	done      chan struct{}
 	heartbeat chan bool
+	timeout   time.Duration
 }
 
 func (f *Follower) Start(rf *Raft, command interface{}) (int, int, bool) {
@@ -22,6 +26,9 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 	DPrintf("%d (follower)  (term %d): received AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
 	if args.Term > rf.currentTerm {
 		rf.currentTerm = args.Term
+		rf.SetState(NewFollower(rf))
+		rf.state.AppendEntries(rf, args, reply)
+		return
 	}
 
 	reply.Term = rf.currentTerm
@@ -75,6 +82,9 @@ func (f *Follower) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVot
 	// candidate's log
 	if args.Term > rf.currentTerm {
 		rf.currentTerm = args.Term
+		rf.SetState(NewFollower(rf))
+		rf.state.RequestVote(rf, args, reply)
+		return
 	}
 
 	DPrintf("%d (follower)  (term %d): received RequestVote call from %d: %+v\n", rf.me, rf.currentTerm, args.CandidateId, args)
@@ -111,7 +121,7 @@ func (f *Follower) Wait(rf *Raft) {
 		case <-f.done:
 			DPrintf("%d (follower)  (term %d): manually closing Wait", rf.me, rf.currentTerm)
 			return
-		case <-time.After(rf.timeout):
+		case <-time.After(f.timeout):
 			DPrintf("%d (follower)  (term %d): timed out", rf.me, rf.currentTerm)
 			rf.mu.Lock()
 			rf.SetState(NewCandidate(rf))
@@ -125,6 +135,7 @@ func NewFollower(rf *Raft) State {
 	f := Follower{}
 	f.done = make(chan struct{})
 	f.heartbeat = make(chan bool, 1)
+	f.timeout = time.Duration(rand.Intn(ElectionTimeoutMin)+(ElectionTimeoutMax-ElectionTimeoutMin)) * time.Millisecond
 	rf.votedFor = -1
 	go f.Wait(rf)
 
