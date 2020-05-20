@@ -101,10 +101,27 @@ func (l *Leader) HandleOneAppendEntries(rf *Raft, server int, args AppendEntries
 				}
 			}
 		} else {
-			// decrement nextIndex for `server`
-			l.nextIndex[server]--
-			if l.nextIndex[server] < 1 {
-				l.nextIndex[server] = 1
+			if reply.Conflict {
+				// search log for last term with `ConflictTerm` as its term
+				index := -1
+				for i := range rf.log.Entries {
+					if rf.log.Entries[i].Term == reply.ConflictTerm {
+						index = i
+					}
+				}
+
+				// if not found, set nextIndex to `ConflictIndex`
+				if index != -1 {
+					l.nextIndex[server] = index+1
+				} else {
+					l.nextIndex[server] = reply.ConflictIndex
+				}
+			} else {
+				// decrement nextIndex for `server`
+				l.nextIndex[server]--
+				if l.nextIndex[server] < 1 {
+					l.nextIndex[server] = 1
+				}
 			}
 		}
 	} else {

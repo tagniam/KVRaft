@@ -44,8 +44,30 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 		}
 	}
 
+	// Add information about conflicting log entry if log doesn't match
+	if !logMatches {
+		if args.PrevLogIndex >= len(rf.log.Entries) {
+			// If a follower does not have prevLogIndex in its log, it should return with
+			// conflictIndex = len(log) and conflictTerm = None.
+			reply.ConflictIndex = len(rf.log.Entries)
+			reply.ConflictTerm = -1
+		} else {
+			// If a follower does have prevLogIndex in its log, but the term does not match, it should return
+			// conflictTerm = log[prevLogIndex].Term, and then search its log for the first index whose entry has
+			// term equal to conflictTerm.
+			reply.ConflictTerm = rf.log.Entries[args.PrevLogIndex].Term
+			// search for first entry in log that has the conflict term
+			i := args.PrevLogIndex
+			for i > 0 && rf.log.Entries[i-1].Term == reply.ConflictTerm {
+				i--
+			}
+			reply.ConflictIndex = i
+		}
+	}
+
 	if insufficientTerm || !logMatches {
 		reply.Success = false
+		reply.Conflict = !logMatches
 		DPrintf("%d (follower)  (term %d): rejected AppendEntries request from %d\n", rf.me, rf.currentTerm, args.LeaderId)
 		return
 	}
