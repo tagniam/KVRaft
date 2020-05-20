@@ -26,8 +26,9 @@ func (l *Leader) Start(rf *Raft, command interface{}) (int, int, bool) {
 		DPrintf("%d (leader)    (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
 		entry := Entry{rf.currentTerm, command}
 		rf.log.Entries = append(rf.log.Entries, entry)
-		l.nextIndex[rf.me]++
-		l.matchIndex[rf.me]++
+		//l.nextIndex[rf.me]++
+		//l.matchIndex[rf.me]++
+		rf.persist()
 	}()
 
 	return rf.log.GetLastLogIndex()+1, rf.currentTerm, true
@@ -44,6 +45,9 @@ func (l *Leader) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEn
 		DPrintf("%d (leader)    (term %d): found AppendEntries with higher term from %d: converting to follower", rf.me, rf.currentTerm, args.LeaderId)
 		rf.SetState(NewFollower(rf))
 		rf.state.AppendEntries(rf, args, reply)
+	} else {
+		reply.Term = rf.currentTerm
+		reply.Success = false
 	}
 }
 
@@ -52,6 +56,9 @@ func (l *Leader) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVoteR
 		DPrintf("%d (leader)    (term %d): found RequestVote with higher term from %d: converting to follower", rf.me, rf.currentTerm, args.CandidateId)
 		rf.SetState(NewFollower(rf))
 		rf.state.RequestVote(rf, args, reply)
+	} else {
+		reply.Term = rf.currentTerm
+		reply.VoteGranted = false
 	}
 }
 
@@ -90,7 +97,7 @@ func (l *Leader) HandleOneAppendEntries(rf *Raft, server int, args AppendEntries
 					}
 				}
 
-				if count > len(rf.peers)/2 && rf.log.Entries[N].Term == rf.currentTerm {
+				if count >= len(rf.peers)/2 && rf.log.Entries[N].Term == rf.currentTerm {
 					DPrintf("%d (leader)    (term %d): setting commit index from %d to %d", rf.me, rf.currentTerm, rf.commitIndex, N)
 					rf.commitIndex = N
 					rf.Commit()

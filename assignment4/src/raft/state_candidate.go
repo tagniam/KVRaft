@@ -17,7 +17,7 @@ func (c *Candidate) Start(rf *Raft, command interface{}) (int, int, bool) {
 func (c *Candidate) Kill(rf *Raft) {
 	close(c.done)
 	DPrintf("%d (candidate) (term %d): killed", rf.me, rf.currentTerm)
-	DPrintf("%d (candidate) (term %d): log: %v", rf.me, rf.currentTerm, rf.log.Entries)
+	DPrintf("%d (candidate) (term %d): killed: log: %v", rf.me, rf.currentTerm, rf.log.Entries)
 }
 
 func (c *Candidate) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -25,6 +25,9 @@ func (c *Candidate) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Appen
 		DPrintf("%d (candidate) (term %d): found AppendEntries with equal or higher term from %d: converting to follower", rf.me, rf.currentTerm, args.LeaderId)
 		rf.SetState(NewFollower(rf))
 		rf.state.AppendEntries(rf, args, reply)
+	} else {
+		reply.Term = rf.currentTerm
+		reply.Success = false
 	}
 }
 
@@ -33,6 +36,9 @@ func (c *Candidate) RequestVote(rf *Raft, args RequestVoteArgs, reply *RequestVo
 		DPrintf("%d (candidate) (term %d): found RequestVote with higher term from %d: converting to follower", rf.me, rf.currentTerm, args.CandidateId)
 		rf.SetState(NewFollower(rf))
 		rf.state.RequestVote(rf, args, reply)
+	} else {
+		reply.Term = rf.currentTerm
+		reply.VoteGranted = false
 	}
 }
 
