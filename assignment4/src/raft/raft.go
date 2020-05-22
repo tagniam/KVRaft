@@ -57,8 +57,8 @@ type Raft struct {
 	commitIndex int
 	lastApplied int
 
-	state       State
-	apply       chan ApplyMsg
+	state State
+	apply chan ApplyMsg
 }
 
 // return currentTerm and whether this server

@@ -13,7 +13,7 @@ type Follower struct {
 
 func (f *Follower) Start(rf *Raft, command interface{}) (int, int, bool) {
 	DPrintf("%d (follower)  (term %d): Start(%v) called", rf.me, rf.currentTerm, command)
-	return rf.log.GetLastLogIndex()+1, rf.currentTerm, false
+	return rf.log.GetLastLogIndex() + 1, rf.currentTerm, false
 }
 
 func (f *Follower) Kill(rf *Raft) {
@@ -77,7 +77,7 @@ func (f *Follower) AppendEntries(rf *Raft, args AppendEntriesArgs, reply *Append
 
 	// if an existing entry conflicts with a new one(same index but different terms), delete the existing entry and all that follow it
 	i := 0
-	j := args.PrevLogIndex+1
+	j := args.PrevLogIndex + 1
 	for i < len(args.Entries) && j < len(rf.log.Entries) && rf.log.Entries[j].Term == args.Entries[i].Term {
 		i++
 		j++

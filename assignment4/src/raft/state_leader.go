@@ -84,7 +84,7 @@ func (l *Leader) HandleOneAppendEntries(rf *Raft, server int, args AppendEntries
 			l.nextIndex[server] = args.PrevLogIndex + numAdded + 1
 			l.matchIndex[server] = args.PrevLogIndex + numAdded
 
-			for N := rf.commitIndex+1; N < len(rf.log.Entries); N++ {
+			for N := rf.commitIndex + 1; N < len(rf.log.Entries); N++ {
 				// Check if a majority of matchIndex >= N
 				count := 0
 				for _, m := range l.matchIndex {
@@ -112,7 +112,7 @@ func (l *Leader) HandleOneAppendEntries(rf *Raft, server int, args AppendEntries
 
 				// if not found, set nextIndex to `ConflictIndex`
 				if index != -1 {
-					l.nextIndex[server] = index+1
+					l.nextIndex[server] = index + 1
 				} else {
 					l.nextIndex[server] = reply.ConflictIndex
 				}
@@ -141,7 +141,7 @@ func (l *Leader) HandleAppendEntries(rf *Raft, server int) {
 		args.LeaderId = rf.me
 		args.LeaderCommit = rf.commitIndex
 
-		prevLogIndex := l.nextIndex[server]-1
+		prevLogIndex := l.nextIndex[server] - 1
 		args.PrevLogIndex = prevLogIndex
 		args.PrevLogTerm = rf.log.Entries[prevLogIndex].Term
 		args.Entries = rf.log.Entries[prevLogIndex+1:]
