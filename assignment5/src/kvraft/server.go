@@ -65,11 +65,7 @@ func (kv *RaftKV) Kill() {
 func (kv *RaftKV) Wait() {
 	for {
 		select {
-		case <- kv.applyCh:
-			kv.mu.Lock()
-			defer kv.mu.Unlock()
-
-
+		case <-kv.applyCh:
 		case <-kv.done:
 			return
 		}
@@ -97,8 +93,6 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv := new(RaftKV)
 	kv.me = me
 	kv.maxraftstate = maxraftstate
-
-	// Your initialization code here.
 
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
