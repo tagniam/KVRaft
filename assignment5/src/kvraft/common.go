@@ -6,6 +6,8 @@ const (
 )
 
 type Err string
+type ClientID int64
+type Sequence int
 
 // Put or Append
 type PutAppendArgs struct {
@@ -13,9 +15,8 @@ type PutAppendArgs struct {
 	Key   string
 	Value string
 	Op    string // "Put" or "Append"
-	// You'll have to add definitions here.
-	// Field names must start with capital letters,
-	// otherwise RPC will break.
+	Client ClientID
+	Seq Sequence
 }
 
 type PutAppendReply struct {
@@ -25,7 +26,8 @@ type PutAppendReply struct {
 
 type GetArgs struct {
 	Key string
-	// You'll have to add definitions here.
+	Client ClientID
+	Seq Sequence
 }
 
 type GetReply struct {

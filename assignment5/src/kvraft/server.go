@@ -19,9 +19,12 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 
 
 type Op struct {
-	// Your definitions here.
-	// Field names must start with capital letters,
-	// otherwise RPC will break.
+	Client ClientID
+	Seq Sequence
+
+	Type string // "Put" or "Append" or "Get"
+	Key string
+	Value string
 }
 
 type RaftKV struct {
@@ -32,16 +35,20 @@ type RaftKV struct {
 
 	maxraftstate int // snapshot if log grows this big
 
-	// Your definitions here.
+	store  map[string]string // stores key/value pairs
+	commit map[int64]chan Op // communication channel with goroutines handling client requests
+	seen   Dedupe // maps client ID -> last seen request id
+	done   chan struct{}
 }
 
+func (kv *RaftKV) Start(op Op) bool {
+	return false
+}
 
 func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) {
-	// Your code here.
 }
 
 func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
-	// Your code here.
 }
 
 //
@@ -51,8 +58,22 @@ func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 // turn off debug output from this instance.
 //
 func (kv *RaftKV) Kill() {
+	close(kv.done)
 	kv.rf.Kill()
-	// Your code here, if desired.
+}
+
+func (kv *RaftKV) Wait() {
+	for {
+		select {
+		case <- kv.applyCh:
+			kv.mu.Lock()
+			defer kv.mu.Unlock()
+
+
+		case <-kv.done:
+			return
+		}
+	}
 }
 
 //
@@ -81,7 +102,11 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
+	kv.store = make(map[string]string)
+	kv.done = make(chan struct{})
+	kv.commit = make(map[int64]chan Op)
 
+	go kv.Wait()
 
 	return kv
 }
