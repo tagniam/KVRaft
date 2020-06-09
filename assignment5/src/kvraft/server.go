@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const Debug = 0
+const Debug = 1
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
 	if Debug > 0 {
@@ -42,14 +42,72 @@ type RaftKV struct {
 }
 
 func (kv *RaftKV) Start(op Op) bool {
-	// subscribe
-	return false
+	index, _, isLeader := kv.rf.Start(op)
+	if !isLeader {
+		return false
+	}
+
+	kv.mu.Lock()
+	// Subscribe to topic `index`
+	ch := kv.commit.Subscribe(index)
+	kv.mu.Unlock()
+
+	applied := <-ch
+	if applied != op {
+		return false
+	}
+
+	kv.mu.Lock()
+	switch op.Type {
+	case "Put":
+		kv.store[op.Key] = op.Value
+	case "Append":
+		kv.store[op.Key] += op.Value
+	}
+	kv.mu.Unlock()
+
+	return true
 }
 
 func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) {
+	op := Op{
+		Client: args.Client,
+		Seq:    args.Seq,
+		Type:   "Get",
+		Key:    args.Key,
+	}
+
+	ok := kv.Start(op)
+
+	if !ok {
+		reply.WrongLeader = true
+	} else {
+		reply.Err = OK
+
+		kv.mu.Lock()
+		if v, ok := kv.store[args.Key]; ok {
+			reply.Value = v
+		}
+		// TODO update duplicates
+		kv.mu.Unlock()
+	}
 }
 
 func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
+	op := Op{
+		Client: args.Client,
+		Seq:    args.Seq,
+		Type:   args.Op,
+		Key:    args.Key,
+		Value:  args.Value,
+	}
+
+	ok := kv.Start(op)
+	if !ok {
+		reply.WrongLeader = true
+	} else {
+		reply.Err = OK
+	}
 }
 
 //
@@ -66,8 +124,17 @@ func (kv *RaftKV) Kill() {
 func (kv *RaftKV) Wait() {
 	for {
 		select {
-		case <-kv.applyCh:
-			// publish
+		case msg := <-kv.applyCh:
+			DPrintf("%d (server): received committed op: %+v", kv.me, msg)
+			kv.mu.Lock()
+			// TODO check duplicate
+			select {
+			case <-kv.done:
+				return
+			default:
+				kv.commit.Publish(msg.Index, msg.Command.(Op))
+			}
+			kv.mu.Unlock()
 		case <-kv.done:
 			return
 		}
