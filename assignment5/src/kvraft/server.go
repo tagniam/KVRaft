@@ -36,12 +36,13 @@ type RaftKV struct {
 	maxraftstate int // snapshot if log grows this big
 
 	store  map[string]string // stores key/value pairs
-	commit map[int64]chan Op // communication channel with goroutines handling client requests
+	commit *PubSub // communication channel with goroutines handling client requests
 	seen   Dedupe // maps client ID -> last seen request id
 	done   chan struct{}
 }
 
 func (kv *RaftKV) Start(op Op) bool {
+	// subscribe
 	return false
 }
 
@@ -66,6 +67,7 @@ func (kv *RaftKV) Wait() {
 	for {
 		select {
 		case <-kv.applyCh:
+			// publish
 		case <-kv.done:
 			return
 		}
@@ -98,7 +100,7 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
 	kv.store = make(map[string]string)
 	kv.done = make(chan struct{})
-	kv.commit = make(map[int64]chan Op)
+	kv.commit = NewPubSub()
 
 	go kv.Wait()
 
