@@ -46,7 +46,6 @@ func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 //
 func (ck *Clerk) Get(key string) string {
 	ck.mu.Lock()
-	DPrintf("%d (client): called Get(%v)", ck.id, key)
 	args := GetArgs{
 		Key:    key,
 		Client: ck.id,
@@ -54,7 +53,7 @@ func (ck *Clerk) Get(key string) string {
 	}
 	ck.seq++
 	ck.mu.Unlock()
-
+	DPrintf("%d (client): called Get(%v) with args %+v", ck.id, key, args)
 
 	for {
 		var reply GetReply
@@ -63,6 +62,7 @@ func (ck *Clerk) Get(key string) string {
 			DPrintf("Success")
 			return reply.Value
 		}
+		DPrintf("%d (client): failed to Get with args %+v, retrying", ck.id, args)
 		ck.leader = (ck.leader + 1) % len(ck.servers)
 	}
 }
@@ -88,13 +88,16 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 	}
 	ck.seq++
 	ck.mu.Unlock()
+	DPrintf("%d (client): called PutAppend(%v) with args %+v", ck.id, key, args)
 
 	for {
 		var reply PutAppendReply
 		ok := ck.servers[ck.leader].Call("RaftKV.PutAppend", &args, &reply)
 		if ok && !reply.WrongLeader {
+			DPrintf("%d (client): succeeded in PutAppend with reply %+v", ck.id, key, reply)
 			return
 		}
+		DPrintf("%d (client): failed to PutAppend with args %+v, retrying", ck.id, args)
 		ck.leader = (ck.leader + 1) % len(ck.servers)
 	}
 }

@@ -1,8 +1,11 @@
 package raftkv
 
+import "sync"
+
 //
 // Data structure to store client sequence numbers
 type Dedupe struct {
+	mu sync.Mutex
 	items map[ClientID]Sequence
 }
 
@@ -11,6 +14,9 @@ type Dedupe struct {
 // been seen before.
 //
 func (d *Dedupe) Update(key ClientID, value Sequence) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if d.items == nil {
 		d.items = make(map[ClientID]Sequence)
 	}

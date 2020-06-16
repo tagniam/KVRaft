@@ -6,6 +6,7 @@ import (
 	"log"
 	"raft"
 	"sync"
+	"time"
 )
 
 const Debug = 1
@@ -47,26 +48,18 @@ func (kv *RaftKV) Start(op Op) bool {
 		return false
 	}
 
-	kv.mu.Lock()
+	//kv.mu.Lock()
 	// Subscribe to topic `index`
 	ch := kv.commit.Subscribe(index)
-	kv.mu.Unlock()
+	//kv.mu.Unlock()
 
-	applied := <-ch
-	if applied != op {
+	select {
+	case res := <-ch:
+		return res == op
+	case <-time.After(800 * time.Millisecond):
 		return false
 	}
-
-	kv.mu.Lock()
-	switch op.Type {
-	case "Put":
-		kv.store[op.Key] = op.Value
-	case "Append":
-		kv.store[op.Key] += op.Value
-	}
-	kv.mu.Unlock()
-
-	return true
+	//return <-ch == op
 }
 
 func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) {
@@ -121,20 +114,36 @@ func (kv *RaftKV) Kill() {
 	kv.rf.Kill()
 }
 
+func (kv *RaftKV) HandleOp(op Op) {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
+	switch op.Type {
+	case "Put":
+		kv.store[op.Key] = op.Value
+	case "Append":
+		kv.store[op.Key] += op.Value
+	}
+}
+
 func (kv *RaftKV) Wait() {
 	for {
 		select {
 		case msg := <-kv.applyCh:
 			DPrintf("%d (server): received committed op: %+v", kv.me, msg)
-			kv.mu.Lock()
-			// TODO check duplicate
+			index := msg.Index
+			op := msg.Command.(Op)
+
+			if ok := kv.seen.Update(op.Client, op.Seq); ok {
+				kv.HandleOp(op)
+			}
+
 			select {
 			case <-kv.done:
 				return
 			default:
-				kv.commit.Publish(msg.Index, msg.Command.(Op))
+				kv.commit.Publish(index, op)
 			}
-			kv.mu.Unlock()
 		case <-kv.done:
 			return
 		}
