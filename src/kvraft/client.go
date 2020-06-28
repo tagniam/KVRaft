@@ -1,21 +1,25 @@
 package raftkv
 
-import (
-	"labrpc"
-	"sync"
-)
+import "labrpc"
 import "crypto/rand"
-import "math/big"
-
+import (
+	"math/big"
+	"sync"
+	"strconv"
+	//"raft"
+)
 
 type Clerk struct {
-	mu sync.Mutex
 	servers []*labrpc.ClientEnd
+	// You will have to modify this struct.
 
-	id ClientID
-	seq Sequence
+	clientID int64
+	reqID    int
+	mu       sync.Mutex
+}
 
-	leader int
+func (obj Clerk) String() string {
+	return "Clerk: Client ID - " + strconv.FormatInt(obj.clientID, 10) + ", Req ID - " + strconv.Itoa(obj.reqID)
 }
 
 func nrand() int64 {
@@ -28,7 +32,10 @@ func nrand() int64 {
 func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 	ck := new(Clerk)
 	ck.servers = servers
-	ck.id = ClientID(nrand())
+	// You'll have to add code here.
+
+	ck.clientID = nrand()
+	ck.reqID = 0
 	return ck
 }
 
@@ -45,25 +52,27 @@ func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 // arguments. and reply must be passed as a pointer.
 //
 func (ck *Clerk) Get(key string) string {
+
+	// You will have to modify this function.
+
+	var args GetArgs
+	args.Key = key
+	args.ClientID = ck.clientID
+
 	ck.mu.Lock()
-	args := GetArgs{
-		Key:    key,
-		Client: ck.id,
-		Seq:    ck.seq,
-	}
-	ck.seq++
+	args.ReqID = ck.reqID
+	ck.reqID++
 	ck.mu.Unlock()
-	DPrintf("%d (client): called Get(%v) with args %+v", ck.id, key, args)
 
 	for {
-		var reply GetReply
-		ok := ck.servers[ck.leader].Call("RaftKV.Get", &args, &reply)
-		if ok && !reply.WrongLeader {
-			DPrintf("Success")
-			return reply.Value
+		for _, v := range ck.servers {
+			var reply GetReply
+			ok := v.Call("RaftKV.Get", &args, &reply)
+			//raft.PrintLog("ClientGet: " + ck.String() + " ;; " + key + " ;; " + reply.String())
+			if ok && !reply.WrongLeader {
+				return reply.Value
+			}
 		}
-		DPrintf("%d (client): failed to Get with args %+v, retrying", ck.id, args)
-		ck.leader = (ck.leader + 1) % len(ck.servers)
 	}
 }
 
@@ -78,27 +87,28 @@ func (ck *Clerk) Get(key string) string {
 // arguments. and reply must be passed as a pointer.
 //
 func (ck *Clerk) PutAppend(key string, value string, op string) {
+	// You will have to modify this function.
+
+	var args PutAppendArgs
+	args.Key = key
+	args.Value = value
+	args.Op = op
+	args.ClientID = ck.clientID
+
 	ck.mu.Lock()
-	args := PutAppendArgs{
-		Key:    key,
-		Value:  value,
-		Op:     op,
-		Client: ck.id,
-		Seq:    ck.seq,
-	}
-	ck.seq++
+	args.ReqID = ck.reqID
+	ck.reqID++
 	ck.mu.Unlock()
-	DPrintf("%d (client): called PutAppend(%v) with args %+v", ck.id, key, args)
 
 	for {
-		var reply PutAppendReply
-		ok := ck.servers[ck.leader].Call("RaftKV.PutAppend", &args, &reply)
-		if ok && !reply.WrongLeader {
-			DPrintf("%d (client): succeeded in PutAppend with reply %+v", ck.id, key, reply)
-			return
+		for _, v := range ck.servers {
+			var reply PutAppendReply
+			ok := v.Call("RaftKV.PutAppend", &args, &reply)
+			//raft.PrintLog("ClientPutAppend: " + ck.String() + " ;; " + key + " ;; " + value + " ;; " + op + " ;; " + reply.String())
+			if ok && !reply.WrongLeader {
+				return
+			}
 		}
-		DPrintf("%d (client): failed to PutAppend with args %+v, retrying", ck.id, args)
-		ck.leader = (ck.leader + 1) % len(ck.servers)
 	}
 }
 

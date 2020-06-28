@@ -7,9 +7,11 @@ import (
 	"raft"
 	"sync"
 	"time"
+	"strconv"
+	"fmt"
 )
 
-const Debug = 1
+const Debug = 0
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
 	if Debug > 0 {
@@ -18,14 +20,20 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 	return
 }
 
-
 type Op struct {
-	Client ClientID
-	Seq Sequence
+	// Your definitions here.
+	// Field names must start with capital letters,
+	// otherwise RPC will break.
 
-	Type string // "Put" or "Append" or "Get"
-	Key string
-	Value string
+	ReqType  string
+	Key      string
+	Value    string
+	ClientID int64
+	ReqID    int
+}
+
+func (obj Op) String() string {
+	return "Op: ReqType - " + obj.ReqType + ", Key - " + obj.Key + ", Value - " + obj.Value + ", Client ID - " + strconv.FormatInt(obj.ClientID, 10) + ", Req ID - " + strconv.Itoa(obj.ReqID)
 }
 
 type RaftKV struct {
@@ -36,70 +44,81 @@ type RaftKV struct {
 
 	maxraftstate int // snapshot if log grows this big
 
-	store  map[string]string // stores key/value pairs
-	commit *PubSub // communication channel with goroutines handling client requests
-	seen   Dedupe // maps client ID -> last seen request id
-	done   chan struct{}
+	// Your definitions here.
+	kvData     map[string]string
+	dupMap     map[int64]int
+	commitChan map[int]chan Op
 }
 
-func (kv *RaftKV) Start(op Op) bool {
-	index, _, isLeader := kv.rf.Start(op)
+func (obj RaftKV) String() string {
+	fmt.Print("Raft KV: ")
+	fmt.Println(obj.kvData)
+	fmt.Println(obj.dupMap)
+	return "Raft KV: Me - " + strconv.Itoa(obj.me) + ", Max Raft State - " + strconv.Itoa(obj.maxraftstate)
+}
+
+func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) {
+	// Your code here.
+
+	entry := Op{ReqType: "Get", Key: args.Key, ClientID: args.ClientID, ReqID: args.ReqID}
+
+	ok := kv.AppendEntryToLog(entry)
+	if ok {
+		reply.WrongLeader = false
+
+		kv.mu.Lock()
+		val, ok := kv.kvData[args.Key]
+		if !ok {
+			reply.Err = ErrNoKey
+		} else {
+			reply.Err = OK
+			reply.Value = val
+			kv.dupMap[args.ClientID] = args.ReqID
+		}
+		kv.mu.Unlock()
+	} else {
+		reply.WrongLeader = true
+	}
+
+	//raft.PrintLog("ServerGet: " + kv.String() + " ;; " + args.String() + " ;; " + reply.String())
+}
+
+func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
+	// Your code here.
+
+	entry := Op{ReqType: args.Op, Key: args.Key, Value: args.Value, ClientID: args.ClientID, ReqID: args.ReqID}
+	ok := kv.AppendEntryToLog(entry)
+
+	if !ok {
+		reply.WrongLeader = true
+	} else {
+		reply.WrongLeader = false
+		reply.Err = OK
+	}
+	//raft.PrintLog("PutAppendFunc: " + args.String() + " ;; " + reply.String() + " ;; " + kv.String())
+}
+
+func (kv *RaftKV) AppendEntryToLog(entry Op) bool {
+	index, _, isLeader := kv.rf.Start(entry)
 	if !isLeader {
 		return false
 	}
 
-	//kv.mu.Lock()
-	// Subscribe to topic `index`
-	ch := kv.commit.Subscribe(index)
-	//kv.mu.Unlock()
+	kv.mu.Lock()
+	ch, ok := kv.commitChan[index]
+	if !ok {
+		ch = make(chan Op, 1)
+		kv.commitChan[index] = ch
+	}
+	kv.mu.Unlock()
 
 	select {
-	case res := <-ch:
-		return res == op
-	case <-time.After(800 * time.Millisecond):
+	case op := <-ch:
+		//raft.PrintLog("AppendEntryToLog: " + op.String() + " ;; " + entry.String())
+		return op == entry
+	case <-time.After(1000 * time.Millisecond):
+		//raft.PrintLog("AppendEntryToLog Timeout: " + entry.String())
 		return false
-	}
-	//return <-ch == op
-}
-
-func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) {
-	op := Op{
-		Client: args.Client,
-		Seq:    args.Seq,
-		Type:   "Get",
-		Key:    args.Key,
-	}
-
-	ok := kv.Start(op)
-
-	if !ok {
-		reply.WrongLeader = true
-	} else {
-		reply.Err = OK
-
-		kv.mu.Lock()
-		if v, ok := kv.store[args.Key]; ok {
-			reply.Value = v
-		}
-		// TODO update duplicates
-		kv.mu.Unlock()
-	}
-}
-
-func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
-	op := Op{
-		Client: args.Client,
-		Seq:    args.Seq,
-		Type:   args.Op,
-		Key:    args.Key,
-		Value:  args.Value,
-	}
-
-	ok := kv.Start(op)
-	if !ok {
-		reply.WrongLeader = true
-	} else {
-		reply.Err = OK
 	}
 }
 
@@ -110,44 +129,8 @@ func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 // turn off debug output from this instance.
 //
 func (kv *RaftKV) Kill() {
-	close(kv.done)
 	kv.rf.Kill()
-}
-
-func (kv *RaftKV) HandleOp(op Op) {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
-
-	switch op.Type {
-	case "Put":
-		kv.store[op.Key] = op.Value
-	case "Append":
-		kv.store[op.Key] += op.Value
-	}
-}
-
-func (kv *RaftKV) Wait() {
-	for {
-		select {
-		case msg := <-kv.applyCh:
-			DPrintf("%d (server): received committed op: %+v", kv.me, msg)
-			index := msg.Index
-			op := msg.Command.(Op)
-
-			if ok := kv.seen.Update(op.Client, op.Seq); ok {
-				kv.HandleOp(op)
-			}
-
-			select {
-			case <-kv.done:
-				return
-			default:
-				kv.commit.Publish(index, op)
-			}
-		case <-kv.done:
-			return
-		}
-	}
+	// Your code here, if desired.
 }
 
 //
@@ -172,13 +155,44 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv.me = me
 	kv.maxraftstate = maxraftstate
 
+	// Your initialization code here.
+
+	kv.kvData = make(map[string]string)
+	kv.dupMap = make(map[int64]int)
+	kv.commitChan = make(map[int]chan Op)
+
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
-	kv.store = make(map[string]string)
-	kv.done = make(chan struct{})
-	kv.commit = NewPubSub()
 
-	go kv.Wait()
+	go func() {
+		for {
+			msg := <-kv.applyCh
+
+			cmd := msg.Command.(Op)
+
+			kv.mu.Lock()
+			v, ok := kv.dupMap[cmd.ClientID]
+			//raft.PrintLog("Existing ID: " + strconv.Itoa(v) + " ;; " + cmd.String())
+			if !ok || v < cmd.ReqID {
+				switch cmd.ReqType {
+				case "Put":
+					kv.kvData[cmd.Key] = cmd.Value
+				case "Append":
+					kv.kvData[cmd.Key] += cmd.Value
+				}
+				kv.dupMap[cmd.ClientID] = cmd.ReqID
+				//raft.PrintLog("PutAppend: " + kv.String())
+			}
+
+			ch, ok := kv.commitChan[msg.Index]
+			if ok {
+				ch <- cmd
+			} else {
+				kv.commitChan[msg.Index] = make(chan Op, 1)
+			}
+			kv.mu.Unlock()
+		}
+	}()
 
 	return kv
 }
