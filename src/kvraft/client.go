@@ -1,16 +1,16 @@
 package raftkv
 
-import "labrpc"
-import "crypto/rand"
 import (
+	"crypto/rand"
 	"math/big"
-	"sync"
+	"rpcraft"
 	"strconv"
-	//"raft"
+	"sync"
 )
 
 type Clerk struct {
-	servers []*labrpc.ClientEnd
+	// servers []*labrpc.ClientEnd
+	servers []*rpcraft.ClientEnd
 	// You will have to modify this struct.
 
 	clientID int64
@@ -29,7 +29,8 @@ func nrand() int64 {
 	return x
 }
 
-func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
+// func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
+func MakeClerk(servers []*rpcraft.ClientEnd) *Clerk {
 	ck := new(Clerk)
 	ck.servers = servers
 	// You'll have to add code here.

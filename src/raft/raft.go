@@ -20,7 +20,7 @@ package raft
 import (
 	"bytes"
 	"encoding/gob"
-	"labrpc"
+	"rpcraft"
 	"sync"
 )
 
@@ -47,7 +47,8 @@ type ApplyMsg struct {
 //
 type Raft struct {
 	mu        sync.Mutex
-	peers     []*labrpc.ClientEnd
+	// peers     []*labrpc.ClientEnd
+	peers     []*rpcraft.ClientEnd
 	persister *Persister
 	me        int // index into peers[]
 
@@ -106,18 +107,20 @@ func (rf *Raft) readPersist(data []byte) {
 //
 // example RequestVote RPC handler.
 //
-func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
+func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	rf.state.RequestVote(rf, args, reply)
 	rf.persist()
+	return nil
 }
 
-func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) {
+func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	rf.state.AppendEntries(rf, args, reply)
 	rf.persist()
+	return nil
 }
 
 //
@@ -167,9 +170,9 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 }
 
 //
-// the tester calls Kill() when a Raft instance won't
+// the tester calls kill() when a Raft instance won't
 // be needed again. you are not required to do anything
-// in Kill(), but it might be convenient to (for example)
+// in kill(), but it might be convenient to (for example)
 // turn off debug output from this instance.
 //
 func (rf *Raft) Kill() {
@@ -206,7 +209,8 @@ func (rf *Raft) Commit() {
 // Make() must return quickly, so it should start goroutines
 // for any long-running work.
 //
-func Make(peers []*labrpc.ClientEnd, me int,
+// func Make(peers []*labrpc.ClientEnd, me int,
+func Make(peers []*rpcraft.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
 	rf.peers = peers

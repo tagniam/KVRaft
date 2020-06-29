@@ -2,13 +2,14 @@ package raftkv
 
 import (
 	"encoding/gob"
-	"labrpc"
+	"fmt"
 	"log"
+	"net/rpc"
 	"raft"
+	"rpcraft"
+	"strconv"
 	"sync"
 	"time"
-	"strconv"
-	"fmt"
 )
 
 const Debug = 0
@@ -57,7 +58,7 @@ func (obj RaftKV) String() string {
 	return "Raft KV: Me - " + strconv.Itoa(obj.me) + ", Max Raft State - " + strconv.Itoa(obj.maxraftstate)
 }
 
-func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) {
+func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
 
 	entry := Op{ReqType: "Get", Key: args.Key, ClientID: args.ClientID, ReqID: args.ReqID}
@@ -81,9 +82,10 @@ func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) {
 	}
 
 	//raft.PrintLog("ServerGet: " + kv.String() + " ;; " + args.String() + " ;; " + reply.String())
+	return nil
 }
 
-func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
+func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 	// Your code here.
 
 	entry := Op{ReqType: args.Op, Key: args.Key, Value: args.Value, ClientID: args.ClientID, ReqID: args.ReqID}
@@ -96,6 +98,7 @@ func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 		reply.Err = OK
 	}
 	//raft.PrintLog("PutAppendFunc: " + args.String() + " ;; " + reply.String() + " ;; " + kv.String())
+	return nil
 }
 
 func (kv *RaftKV) AppendEntryToLog(entry Op) bool {
@@ -146,7 +149,8 @@ func (kv *RaftKV) Kill() {
 // StartKVServer() must return quickly, so it should start goroutines
 // for any long-running work.
 //
-func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister, maxraftstate int) *RaftKV {
+// func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister, maxraftstate int) *RaftKV {
+func StartKVServer(servers []*rpcraft.ClientEnd, me int, persister *raft.Persister, maxraftstate int) *RaftKV {
 	// call gob.Register on structures you want
 	// Go's RPC library to marshall/unmarshall.
 	gob.Register(Op{})
@@ -194,5 +198,14 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 		}
 	}()
 
+	err := rpc.Register(kv)
+	if err != nil {
+		log.Fatalf("could not register: %v", err)
+	}
+
+	err = rpc.Register(kv.rf)
+	if err != nil {
+		log.Fatalf("could not register: %v", err)
+	}
 	return kv
 }
