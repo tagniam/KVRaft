@@ -1,6 +1,6 @@
 package raftkv
 
-import "sync"
+/*import "sync"
 
 //
 // Data structure to store client sequence numbers
@@ -28,4 +28,4 @@ func (d *Dedupe) Update(key ClientID, value Sequence) bool {
 
 	return false
 }
-
+*/

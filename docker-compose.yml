@@ -1,0 +1,31 @@
+version: '3.4'
+
+services:
+  kvraft-node-1:
+    build:
+      context: .
+      args:
+        PORT: 4040
+    command: server 4040,4041,4042 0
+    network_mode: "host"
+  kvraft-node-2:
+    build:
+      context: .
+      args:
+        PORT: 4041
+    command: server 4040,4041,4042 1
+    network_mode: "host"
+  kvraft-node-3:
+    build:
+      context: .
+      args:
+        PORT: 4042
+    command: server 4040,4041,4042 2
+    network_mode: "host"
+  kvraft-api:
+    build:
+      context: .
+      args:
+        PORT: 3000
+    command: api 4040,4041,4042 localhost
+    network_mode: "host"
