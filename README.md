@@ -14,7 +14,7 @@ Raft is a distributed consensus algorithm that manages replicated logs for finit
 ### Building & Running
 The service starts with 3 Raft nodes operating in individual Docker containers. To bring them up, run Docker Compose:
 ```sh
-$ docker-compose --build
+$ docker-compose up --build
 ```
 
 ### API
