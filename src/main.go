@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	raftkv "kvraft"
 	"log"
@@ -32,6 +33,77 @@ func MakeAndServe(clients []*rpcraft.ClientEnd, me int) {
 	}
 }
 
+type API struct {
+	clerk *raftkv.Clerk
+}
+
+type APIGetResponse struct {
+	Value string `json:"value"`
+}
+
+type APIPostRequest struct {
+	Value string `json:"value"`
+}
+
+type APIPostResponse struct {
+	Success bool `json:"success"`
+}
+
+func logRequest(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
+		handler.ServeHTTP(w, r)
+	})
+}
+
+func (a *API) Serve() {
+	http.HandleFunc("/kvraft/", func(w http.ResponseWriter, r *http.Request) {
+		key := strings.TrimPrefix(r.URL.Path, "/kvraft/")
+		switch r.Method {
+		case "GET":
+			val := a.clerk.Get(key)
+			json, _ := json.Marshal(&APIGetResponse{val})
+			w.Write(json)
+		case "POST":
+			var req APIPostRequest
+			json.NewDecoder(r.Body).Decode(&req)
+			a.clerk.Put(key, req.Value)
+			json, _ := json.Marshal(&APIPostResponse{true})
+			w.Write(json)
+		}
+	})
+
+	http.ListenAndServe(":3000", logRequest(http.DefaultServeMux))
+}
+
+type Client struct {
+	clerk *raftkv.Clerk
+}
+
+func (c *Client) Prompt() {
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		scanner.Scan()
+		input := scanner.Text()
+		tokens := strings.Split(input, " ")
+		switch tokens[0] {
+		case "get":
+			key := tokens[1]
+			fmt.Println(c.clerk.Get(key))
+		case "put":
+			key := tokens[1]
+			value := tokens[2]
+			c.clerk.Put(key, value)
+		case "append":
+			key := tokens[1]
+			value := tokens[2]
+			c.clerk.Append(key, value)
+		case "exit":
+			return
+		}
+	}
+}
+
 func main() {
 	if len(os.Args) == 1 {
 		fmt.Printf("usage: go run main.go server  [ports] [me]\n")
@@ -59,31 +131,17 @@ func main() {
 		}
 
 		MakeAndServe(clients, me)
+	case "api":
+		ip := os.Args[3]
+		clients := rpcraft.MakeClients(ip, ports)
+		clerk := raftkv.MakeClerk(clients)
+		api := API{clerk}
+		api.Serve()
 	case "client":
 		ip := os.Args[3]
 		clients := rpcraft.MakeClients(ip, ports)
-
 		clerk := raftkv.MakeClerk(clients)
-		scanner := bufio.NewScanner(os.Stdin)
-		for {
-			scanner.Scan()
-			input := scanner.Text()
-			tokens := strings.Split(input, " ")
-			switch tokens[0] {
-			case "get":
-				key := tokens[1]
-				fmt.Println(clerk.Get(key))
-			case "put":
-				key := tokens[1]
-				value := tokens[2]
-				clerk.Put(key, value)
-			case "append":
-				key := tokens[1]
-				value := tokens[2]
-				clerk.Append(key, value)
-			case "exit":
-				return
-			}
-		}
+		c := Client{clerk}
+		c.Prompt()
 	}
 }
