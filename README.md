@@ -1,4 +1,43 @@
-# KVRaft: A Distributed Key-Value Store
+# KVRaft
+**KVRaft** is a fault-tolerant distributed key-value store, built on the [Raft consensus algorithm](https://raft.github.io/).
+
+## Demo
+![](demo.gif)
+
+## Background
+KVRaft uses the Raft protocol to implement a replicated key-value store that can withstand node failure and network partitions, exposed through a REST API on the client side.
+
+Raft is a distributed consensus algorithm that manages replicated logs for finite state machines (such as key-value stores). The algorithm handles *leader election*, *log replication*, and *safety* to ensure data survives in case of node failure. More information on Raft can be found at the [wonderful paper written by Diego Ongaro and John Ousterhout](https://raft.github.io/raft.pdf).
+
+
+## Usage
+### Building & Running
+The service starts with 3 Raft nodes operating in individual Docker containers. To bring them up, run Docker Compose:
+```sh
+$ docker-compose --build
+```
+
+### API
+From here, the service is exposed through an REST API on `localhost:3000`, that supports two operations:
+```http
+GET /kvraft/:key
+```
+
+and
+
+```http
+POST /kvraft/:key
+```
+
+where the POST request body is in the form `{"value": <your-value-here>}`.
+
+Sample usage of the API:
+```sh
+$ curl -XPOST -d '{"value":"baz"}' http://localhost:3000/kvraft/foo
+{"success": true}
+$ curl http://localhost:3000/kvraft/foo
+{"value": "baz"}
+```
 
 ## Acknowledgements
-This project is adapted from MIT's 6.824 course. Thanks to Frans Kaashoek, Robert Morris, and Nickolai Zeldovich for their support.
+This project is adapted from Princeton's [COS 418 Distributed Systems](https://www.cs.princeton.edu/courses/archive/fall19/cos418/schedule.html) course, which in turn is adapted from MIT's [6.824 Distributed Systems](https://pdos.csail.mit.edu/6.824/) course. Many thanks to the instructors for the amazing course material.
