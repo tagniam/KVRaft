@@ -32,10 +32,10 @@ func MakeAndServe(clients []*rpcraft.ClientEnd, me int) {
 	}
 }
 
-// usage: go run main.go [server/client] [ports] [me]
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Printf("usage: go run main.go [ports] [me]")
+		fmt.Printf("usage: go run main.go server  [ports] [me]\n")
+		fmt.Printf("usage: go run main.go client  [ports] [ip]\n")
 		return
 	}
 
@@ -48,11 +48,11 @@ func main() {
 
 		ports = append(ports, nport)
 	}
-	ip := "localhost"
-	clients := rpcraft.MakeClients(ip, ports)
 
 	switch os.Args[1] {
 	case "server":
+		ip := "localhost"
+		clients := rpcraft.MakeClients(ip, ports)
 		me, err := strconv.Atoi(os.Args[3])
 		if err != nil {
 			log.Fatalf("bad index: %s\n", os.Args[2])
@@ -60,6 +60,9 @@ func main() {
 
 		MakeAndServe(clients, me)
 	case "client":
+		ip := os.Args[3]
+		clients := rpcraft.MakeClients(ip, ports)
+
 		clerk := raftkv.MakeClerk(clients)
 		scanner := bufio.NewScanner(os.Stdin)
 		for {
