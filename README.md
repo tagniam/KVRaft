@@ -1,4 +1,4 @@
-# KVRaft
+# KVRaft [![Go Report Card](https://goreportcard.com/badge/github.com/tagniam/KVRaft)](https://goreportcard.com/report/github.com/tagniam/KVRaft)
 **KVRaft** is a fault-tolerant distributed key-value store, built on the [Raft consensus algorithm](https://raft.github.io/).
 
 ## Demo
@@ -29,7 +29,7 @@ and
 POST /kvraft/:key
 ```
 
-where the POST request body is in the form `{"value": <your-value-here>}`.
+where the `POST` request body is in the form `{"value": "<your-value-here>"}`.
 
 Sample usage of the API:
 ```sh
@@ -37,6 +37,16 @@ $ curl -XPOST -d '{"value":"baz"}' http://localhost:3000/kvraft/foo
 {"success": true}
 $ curl http://localhost:3000/kvraft/foo
 {"value": "baz"}
+```
+
+### Tests
+The project is also bundled with integration tests that simulate a network of Raft nodes under various conditions (concurrent clients, follower/leader crashes, partitions, etc.). To run the tests, run `go test` on the `raft` and `kvraft` packages:
+
+```sh
+$ go test raft
+ok  	raft	159.893s
+$ go test kvraft
+ok  	kvraft	214.245s
 ```
 
 ## Acknowledgements
