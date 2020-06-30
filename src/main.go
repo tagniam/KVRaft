@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	raftkv "kvraft"
+	"labrpc"
 	"log"
 	"net"
 	"net/http"
@@ -18,7 +19,11 @@ import (
 
 func MakeAndServe(clients []*rpcraft.ClientEnd, me int) {
 	persister := raft.MakePersister()
-	raftkv.StartKVServer(clients, me, persister, -1)
+	cl := make([]labrpc.Client, len(clients))
+	for i, c := range clients {
+		cl[i] = c
+	}
+	raftkv.StartKVServer(cl, me, persister, -1)
 	rpc.HandleHTTP()
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", clients[me].Port))
@@ -121,6 +126,7 @@ func main() {
 		ports = append(ports, nport)
 	}
 
+
 	switch os.Args[1] {
 	case "server":
 		ip := "localhost"
@@ -133,13 +139,21 @@ func main() {
 		MakeAndServe(clients, me)
 	case "api":
 		ip := os.Args[3]
-		clients := rpcraft.MakeClients(ip, ports)
+		cl := rpcraft.MakeClients(ip, ports)
+		clients := make([]labrpc.Client, len(cl))
+		for i, c := range cl {
+			clients[i] = c
+		}
 		clerk := raftkv.MakeClerk(clients)
 		api := API{clerk}
 		api.Serve()
 	case "client":
 		ip := os.Args[3]
-		clients := rpcraft.MakeClients(ip, ports)
+		cl := rpcraft.MakeClients(ip, ports)
+		clients := make([]labrpc.Client, len(cl))
+		for i, c := range cl {
+			clients[i] = c
+		}
 		clerk := raftkv.MakeClerk(clients)
 		c := Client{clerk}
 		c.Prompt()
