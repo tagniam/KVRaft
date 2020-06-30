@@ -2,6 +2,8 @@ language: go
 go:
   - 1.10.4
 
+go_import_path: github.com/tagniam/KVRaft
+
 script:
   - go test -v raft
   - go test -v kvraft
