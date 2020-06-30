@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"labrpc"
 	"math/big"
-	"strconv"
 	"sync"
 )
 
@@ -15,10 +14,6 @@ type Clerk struct {
 	clientID int64
 	reqID    int
 	mu       sync.Mutex
-}
-
-func (obj Clerk) String() string {
-	return "Clerk: Client ID - " + strconv.FormatInt(obj.clientID, 10) + ", Req ID - " + strconv.Itoa(obj.reqID)
 }
 
 func nrand() int64 {

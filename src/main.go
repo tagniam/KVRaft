@@ -126,7 +126,6 @@ func main() {
 		ports = append(ports, nport)
 	}
 
-
 	switch os.Args[1] {
 	case "server":
 		ip := "localhost"

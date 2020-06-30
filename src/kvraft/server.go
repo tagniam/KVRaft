@@ -2,7 +2,6 @@ package raftkv
 
 import (
 	"encoding/gob"
-	"fmt"
 	"labrpc"
 	"log"
 	"net/rpc"
@@ -49,13 +48,6 @@ type RaftKV struct {
 	kvData     map[string]string
 	dupMap     map[int64]int
 	commitChan map[int]chan Op
-}
-
-func (obj RaftKV) String() string {
-	fmt.Print("Raft KV: ")
-	fmt.Println(obj.kvData)
-	fmt.Println(obj.dupMap)
-	return "Raft KV: Me - " + strconv.Itoa(obj.me) + ", Max Raft State - " + strconv.Itoa(obj.maxraftstate)
 }
 
 func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) error {
