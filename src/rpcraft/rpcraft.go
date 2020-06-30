@@ -7,8 +7,8 @@ import (
 )
 
 type ClientEnd struct {
-	IP   string
-	Port int
+	IP     string
+	Port   int
 	client *rpc.Client
 }
 
@@ -39,4 +39,3 @@ func MakeClients(ip string, ports []int) []*ClientEnd {
 
 	return clients
 }
-

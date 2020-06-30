@@ -46,7 +46,7 @@ type ApplyMsg struct {
 // A Go object implementing a single Raft peer.
 //
 type Raft struct {
-	mu        sync.Mutex
+	mu sync.Mutex
 	// peers     []*labrpc.ClientEnd
 	peers     []labrpc.Client
 	persister *Persister

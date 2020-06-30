@@ -3,7 +3,7 @@ package raftkv
 import "sync"
 
 type PubSub struct {
-	mu sync.RWMutex
+	mu   sync.RWMutex
 	subs map[int][]chan Op
 }
 

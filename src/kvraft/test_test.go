@@ -393,5 +393,3 @@ func TestPersistPartitionUnreliable(t *testing.T) {
 	fmt.Printf("Test: persistence with concurrent clients and repartitioning servers, unreliable...\n")
 	GenericTest(t, "persistpartunreliable", 5, true, true, true, -1)
 }
-
-
