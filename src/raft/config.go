@@ -176,7 +176,11 @@ func (cfg *config) start1(i int) {
 		}
 	}()
 
-	rf := Make(nil, i, cfg.saved[i], applyCh)
+	servers := make([]labrpc.Client, len(ends))
+	for i, e := range ends {
+		servers[i] = e
+	}
+	rf := Make(servers, i, cfg.saved[i], applyCh)
 
 	cfg.mu.Lock()
 	cfg.rafts[i] = rf

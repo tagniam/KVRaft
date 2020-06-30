@@ -48,7 +48,9 @@ package labrpc
 //   pass svc to srv.AddService()
 //
 
-import "encoding/gob"
+import (
+	"encoding/gob"
+)
 import "bytes"
 import "reflect"
 import "sync"
@@ -68,6 +70,10 @@ type reqMsg struct {
 type replyMsg struct {
 	ok    bool
 	reply []byte
+}
+
+type Client interface {
+	Call(string, interface{}, interface{}) bool
 }
 
 type ClientEnd struct {
@@ -412,7 +418,7 @@ func MakeService(rcvr interface{}) *Service {
 			mtype.NumIn() != 3 ||
 			//mtype.In(1).Kind() != reflect.Ptr ||
 			mtype.In(2).Kind() != reflect.Ptr ||
-			mtype.NumOut() != 0 {
+			mtype.NumOut() != 1 {
 			// the method is not suitable for a handler
 			//fmt.Printf("bad method: %v\n", mname)
 		} else {

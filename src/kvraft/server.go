@@ -3,10 +3,10 @@ package raftkv
 import (
 	"encoding/gob"
 	"fmt"
+	"labrpc"
 	"log"
 	"net/rpc"
 	"raft"
-	"rpcraft"
 	"strconv"
 	"sync"
 	"time"
@@ -149,8 +149,7 @@ func (kv *RaftKV) Kill() {
 // StartKVServer() must return quickly, so it should start goroutines
 // for any long-running work.
 //
-// func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister, maxraftstate int) *RaftKV {
-func StartKVServer(servers []*rpcraft.ClientEnd, me int, persister *raft.Persister, maxraftstate int) *RaftKV {
+func StartKVServer(servers []labrpc.Client, me int, persister *raft.Persister, maxraftstate int) *RaftKV {
 	// call gob.Register on structures you want
 	// Go's RPC library to marshall/unmarshall.
 	gob.Register(Op{})
@@ -200,12 +199,12 @@ func StartKVServer(servers []*rpcraft.ClientEnd, me int, persister *raft.Persist
 
 	err := rpc.Register(kv)
 	if err != nil {
-		log.Fatalf("could not register: %v", err)
+		log.Printf("could not register %d: %v", me, err)
 	}
 
 	err = rpc.Register(kv.rf)
 	if err != nil {
-		log.Fatalf("could not register: %v", err)
+		log.Printf("could not register %d: %v", me, err)
 	}
 	return kv
 }
