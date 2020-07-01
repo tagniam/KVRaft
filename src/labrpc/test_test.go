@@ -20,35 +20,40 @@ type JunkServer struct {
 	log2 []int
 }
 
-func (js *JunkServer) Handler1(args string, reply *int) {
+func (js *JunkServer) Handler1(args string, reply *int) error {
 	js.mu.Lock()
 	defer js.mu.Unlock()
 	js.log1 = append(js.log1, args)
 	*reply, _ = strconv.Atoi(args)
+	return nil
 }
 
-func (js *JunkServer) Handler2(args int, reply *string) {
+func (js *JunkServer) Handler2(args int, reply *string) error {
 	js.mu.Lock()
 	defer js.mu.Unlock()
 	js.log2 = append(js.log2, args)
 	*reply = "handler2-" + strconv.Itoa(args)
+	return nil
 }
 
-func (js *JunkServer) Handler3(args int, reply *int) {
+func (js *JunkServer) Handler3(args int, reply *int) error {
 	js.mu.Lock()
 	defer js.mu.Unlock()
 	time.Sleep(20 * time.Second)
 	*reply = -args
+	return nil
 }
 
 // args is a pointer
-func (js *JunkServer) Handler4(args *JunkArgs, reply *JunkReply) {
+func (js *JunkServer) Handler4(args *JunkArgs, reply *JunkReply) error {
 	reply.X = "pointer"
+	return nil
 }
 
 // args is a not pointer
-func (js *JunkServer) Handler5(args JunkArgs, reply *JunkReply) {
+func (js *JunkServer) Handler5(args JunkArgs, reply *JunkReply) error {
 	reply.X = "no pointer"
+	return nil
 }
 
 func TestBasic(t *testing.T) {
