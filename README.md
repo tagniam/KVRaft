@@ -18,7 +18,7 @@ $ docker-compose up --build
 ```
 
 ### API
-From here, the service is exposed through an REST API on `localhost:3000`, that supports two operations:
+From here, the service is exposed through a REST API on `localhost:3000`, that supports two operations:
 ```http
 GET /kvraft/:key
 ```
