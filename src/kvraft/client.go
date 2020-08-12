@@ -1,19 +1,17 @@
 package raftkv
 
 import (
-	"crypto/rand"
-	"labrpc"
-	"math/big"
-	"sync"
+"crypto/rand"
+"labrpc"
+"math/big"
+"sync"
 )
 
 type Clerk struct {
 	servers []labrpc.Client
-	// You will have to modify this struct.
-
-	clientID int64
-	reqID    int
-	mu       sync.Mutex
+	id      int64
+	seq     int
+	mu      sync.Mutex
 }
 
 func nrand() int64 {
@@ -26,10 +24,9 @@ func nrand() int64 {
 func MakeClerk(servers []labrpc.Client) *Clerk {
 	ck := new(Clerk)
 	ck.servers = servers
-	// You'll have to add code here.
 
-	ck.clientID = nrand()
-	ck.reqID = 0
+	ck.id = nrand()
+	ck.seq = 0
 	return ck
 }
 
@@ -46,27 +43,26 @@ func MakeClerk(servers []labrpc.Client) *Clerk {
 // arguments. and reply must be passed as a pointer.
 //
 func (ck *Clerk) Get(key string) string {
-
-	// You will have to modify this function.
-
-	var args GetArgs
-	args.Key = key
-	args.ClientID = ck.clientID
+	args := GetArgs{
+		Key:    key,
+		Client: ck.id,
+	}
 
 	ck.mu.Lock()
-	args.ReqID = ck.reqID
-	ck.reqID++
+	args.Seq = ck.seq
+	ck.seq++
 	ck.mu.Unlock()
 
+	i := 0
 	for {
-		for _, v := range ck.servers {
-			var reply GetReply
-			ok := v.Call("RaftKV.Get", &args, &reply)
-			//raft.PrintLog("ClientGet: " + ck.String() + " ;; " + key + " ;; " + reply.String())
-			if ok && !reply.WrongLeader {
-				return reply.Value
-			}
+		server := ck.servers[i]
+		var reply GetReply
+
+		ok := server.Call("RaftKV.Get", &args, &reply)
+		if ok && !reply.WrongLeader {
+			return reply.Value
 		}
+		i = (i + 1) % len(ck.servers)
 	}
 }
 
@@ -81,28 +77,28 @@ func (ck *Clerk) Get(key string) string {
 // arguments. and reply must be passed as a pointer.
 //
 func (ck *Clerk) PutAppend(key string, value string, op string) {
-	// You will have to modify this function.
-
-	var args PutAppendArgs
-	args.Key = key
-	args.Value = value
-	args.Op = op
-	args.ClientID = ck.clientID
+	args := PutAppendArgs{
+		Key:    key,
+		Value:  value,
+		Op:     op,
+		Client: ck.id,
+	}
 
 	ck.mu.Lock()
-	args.ReqID = ck.reqID
-	ck.reqID++
+	args.Seq = ck.seq
+	ck.seq++
 	ck.mu.Unlock()
 
+	i := 0
 	for {
-		for _, v := range ck.servers {
-			var reply PutAppendReply
-			ok := v.Call("RaftKV.PutAppend", &args, &reply)
-			//raft.PrintLog("ClientPutAppend: " + ck.String() + " ;; " + key + " ;; " + value + " ;; " + op + " ;; " + reply.String())
-			if ok && !reply.WrongLeader {
-				return
-			}
+		server := ck.servers[i]
+
+		var reply PutAppendReply
+		ok := server.Call("RaftKV.PutAppend", &args, &reply)
+		if ok && !reply.WrongLeader {
+			return
 		}
+		i = (i + 1) % len(ck.servers)
 	}
 }
 

@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/rpc"
 	"raft"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -25,15 +24,12 @@ type Op struct {
 	// Field names must start with capital letters,
 	// otherwise RPC will break.
 
-	ReqType  string
-	Key      string
-	Value    string
-	ClientID int64
-	ReqID    int
-}
+	Type   string
+	Client int64
+	Seq    int
 
-func (obj Op) String() string {
-	return "Op: ReqType - " + obj.ReqType + ", Key - " + obj.Key + ", Value - " + obj.Value + ", Client ID - " + strconv.FormatInt(obj.ClientID, 10) + ", Req ID - " + strconv.Itoa(obj.ReqID)
+	Key    string
+	Value  string
 }
 
 type RaftKV struct {
@@ -45,51 +41,56 @@ type RaftKV struct {
 	maxraftstate int // snapshot if log grows this big
 
 	// Your definitions here.
-	kvData     map[string]string
-	dupMap     map[int64]int
-	commitChan map[int]chan Op
+	store map[string]string
+	lastSeq map[int64]int
+	commitCh map[int]chan Op
 }
 
 func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) error {
-	// Your code here.
+	op := Op{
+		Type: "Get",
+		Client: args.Client,
+		Seq: args.Seq,
+		Key: args.Key,
+	}
 
-	entry := Op{ReqType: "Get", Key: args.Key, ClientID: args.ClientID, ReqID: args.ReqID}
-
-	ok := kv.AppendEntryToLog(entry)
+	ok := kv.AppendEntryToLog(op)
 	if ok {
 		reply.WrongLeader = false
 
 		kv.mu.Lock()
-		val, ok := kv.kvData[args.Key]
+		defer kv.mu.Unlock()
+		val, ok := kv.store[args.Key]
 		if !ok {
 			reply.Err = ErrNoKey
 		} else {
 			reply.Err = OK
 			reply.Value = val
-			kv.dupMap[args.ClientID] = args.ReqID
+			kv.lastSeq[args.Client] = args.Seq
 		}
-		kv.mu.Unlock()
 	} else {
 		reply.WrongLeader = true
 	}
 
-	//raft.PrintLog("ServerGet: " + kv.String() + " ;; " + args.String() + " ;; " + reply.String())
 	return nil
 }
 
 func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
-	// Your code here.
+	op := Op{
+		Type: args.Op,
+		Client: args.Client,
+		Seq: args.Seq,
+		Key: args.Key,
+		Value: args.Value,
+	}
 
-	entry := Op{ReqType: args.Op, Key: args.Key, Value: args.Value, ClientID: args.ClientID, ReqID: args.ReqID}
-	ok := kv.AppendEntryToLog(entry)
-
+	ok := kv.AppendEntryToLog(op)
 	if !ok {
 		reply.WrongLeader = true
 	} else {
 		reply.WrongLeader = false
 		reply.Err = OK
 	}
-	//raft.PrintLog("PutAppendFunc: " + args.String() + " ;; " + reply.String() + " ;; " + kv.String())
 	return nil
 }
 
@@ -100,19 +101,18 @@ func (kv *RaftKV) AppendEntryToLog(entry Op) bool {
 	}
 
 	kv.mu.Lock()
-	ch, ok := kv.commitChan[index]
+	ch, ok := kv.commitCh[index]
 	if !ok {
 		ch = make(chan Op, 1)
-		kv.commitChan[index] = ch
+		kv.commitCh[index] = ch
 	}
 	kv.mu.Unlock()
 
 	select {
 	case op := <-ch:
-		//raft.PrintLog("AppendEntryToLog: " + op.String() + " ;; " + entry.String())
 		return op == entry
 	case <-time.After(1000 * time.Millisecond):
-		//raft.PrintLog("AppendEntryToLog Timeout: " + entry.String())
+		// timeout
 		return false
 	}
 }
@@ -125,7 +125,33 @@ func (kv *RaftKV) AppendEntryToLog(entry Op) bool {
 //
 func (kv *RaftKV) Kill() {
 	kv.rf.Kill()
-	// Your code here, if desired.
+}
+
+func (kv *RaftKV) Wait() {
+	for {
+		msg := <-kv.applyCh
+		cmd := msg.Command.(Op)
+
+		kv.mu.Lock()
+		v, ok := kv.lastSeq[cmd.Client]
+		if !ok || v < cmd.Seq {
+			switch cmd.Type {
+			case "Put":
+				kv.store[cmd.Key] = cmd.Value
+			case "Append":
+				kv.store[cmd.Key] += cmd.Value
+			}
+			kv.lastSeq[cmd.Client] = cmd.Seq
+		}
+
+		ch, ok := kv.commitCh[msg.Index]
+		if ok {
+			ch <- cmd
+		} else {
+			kv.commitCh[msg.Index] = make(chan Op, 1)
+		}
+		kv.mu.Unlock()
+	}
 }
 
 //
@@ -152,42 +178,14 @@ func StartKVServer(servers []labrpc.Client, me int, persister *raft.Persister, m
 
 	// Your initialization code here.
 
-	kv.kvData = make(map[string]string)
-	kv.dupMap = make(map[int64]int)
-	kv.commitChan = make(map[int]chan Op)
+	kv.store = make(map[string]string)
+	kv.lastSeq = make(map[int64]int)
+	kv.commitCh = make(map[int]chan Op)
 
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
 
-	go func() {
-		for {
-			msg := <-kv.applyCh
-
-			cmd := msg.Command.(Op)
-
-			kv.mu.Lock()
-			v, ok := kv.dupMap[cmd.ClientID]
-			//raft.PrintLog("Existing ID: " + strconv.Itoa(v) + " ;; " + cmd.String())
-			if !ok || v < cmd.ReqID {
-				switch cmd.ReqType {
-				case "Put":
-					kv.kvData[cmd.Key] = cmd.Value
-				case "Append":
-					kv.kvData[cmd.Key] += cmd.Value
-				}
-				kv.dupMap[cmd.ClientID] = cmd.ReqID
-				//raft.PrintLog("PutAppend: " + kv.String())
-			}
-
-			ch, ok := kv.commitChan[msg.Index]
-			if ok {
-				ch <- cmd
-			} else {
-				kv.commitChan[msg.Index] = make(chan Op, 1)
-			}
-			kv.mu.Unlock()
-		}
-	}()
+	go kv.Wait()
 
 	err := rpc.Register(kv)
 	if err != nil {
