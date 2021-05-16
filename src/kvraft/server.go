@@ -20,10 +20,6 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 }
 
 type Op struct {
-	// Your definitions here.
-	// Field names must start with capital letters,
-	// otherwise RPC will break.
-
 	Type   string
 	Client int64
 	Seq    int
@@ -40,7 +36,6 @@ type RaftKV struct {
 
 	maxraftstate int // snapshot if log grows this big
 
-	// Your definitions here.
 	store map[string]string
 	lastSeq map[int64]int
 	commitCh map[int]chan Op
@@ -133,9 +128,10 @@ func (kv *RaftKV) Wait() {
 		cmd := msg.Command.(Op)
 
 		kv.mu.Lock()
-		v, ok := kv.lastSeq[cmd.Client]
-		if !ok || v < cmd.Seq {
-			switch cmd.Type {
+		last, ok := kv.lastSeq[cmd.Client]
+		if !ok || last < cmd.Seq {
+			switch cmd.Type e
+			{
 			case "Put":
 				kv.store[cmd.Key] = cmd.Value
 			case "Append":

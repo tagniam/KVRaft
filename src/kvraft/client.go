@@ -1,10 +1,10 @@
 package raftkv
 
 import (
-"crypto/rand"
-"labrpc"
-"math/big"
-"sync"
+	"crypto/rand"
+	"labrpc"
+	"math/big"
+	"sync"
 )
 
 type Clerk struct {

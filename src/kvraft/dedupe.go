@@ -29,3 +29,17 @@ func (d *Dedupe) Update(key ClientID, value Sequence) bool {
 	return false
 }
 */
+
+type ClientSequence struct {
+	lastSeq map[int64]int
+}
+
+func (cs *ClientSequence) Update(client int64, seq int) bool {
+	last, ok := cs.lastSeq[client]
+	if !ok || last < seq {
+		cs.lastSeq[client] = seq
+		return true
+	}
+	return false
+}
+
